@@ -14,10 +14,14 @@ import {
   Pencil,
   Trash2,
   X,
+  Eye,
+  EyeOff,
 } from "lucide-react";
 import { useEditorStore } from "@/stores/editorStore";
 import { useState, useRef, useEffect } from "react";
 import { cn } from "../lib/utils";
+// Import element types directly from the editor store
+import type { TextElement, ImageElement } from "@/stores/editorStore";
 
 const DEBUG_LAYOUT = false;
 
@@ -113,6 +117,132 @@ function TextEditModal({
   );
 }
 
+// Types for element components
+interface TextElementProps {
+  element: TextElement;
+  selected: boolean;
+  xPercent: number;
+  yPercent: number;
+  isEditingDisabled: boolean;
+  startDrag: (e: React.MouseEvent, elementId: string) => void;
+  openEditModal: (e: React.MouseEvent) => void;
+  handleDeleteElement: (e: React.MouseEvent) => void;
+}
+
+interface ImageElementProps {
+  element: ImageElement;
+  selected: boolean;
+  xPercent: number;
+  yPercent: number;
+  scaleFactor: number;
+  isEditingDisabled: boolean;
+  startDrag: (e: React.MouseEvent, elementId: string) => void;
+  handleDeleteElement: (e: React.MouseEvent) => void;
+}
+
+// TextElement Component
+function TextElementComponent({
+  element,
+  selected,
+  xPercent,
+  yPercent,
+  isEditingDisabled,
+  startDrag,
+  openEditModal,
+  handleDeleteElement
+}: TextElementProps) {
+  return (
+    <div 
+      key={element.id}
+      className={cn(
+        "absolute p-2",
+        !isEditingDisabled && "cursor-move",
+        selected && "border-2 border-dashed border-blue-500"
+      )}
+      style={{
+        left: `${xPercent}%`,
+        top: `${yPercent}%`,
+        transform: 'translate(-50%, -50%)', // Center on the coordinates
+        userSelect: 'none', // Prevent text selection when dragging
+      }}
+      onClick={(e) => e.stopPropagation()}
+      onMouseDown={(e) => !isEditingDisabled && startDrag(e, element.id)}
+    >
+      <p className="text-xl whitespace-nowrap select-none">{element.text}</p>
+      
+      {/* Controls that appear when selected */}
+      {selected && !isEditingDisabled && (
+        <div className="absolute -bottom-10 left-1/2 transform -translate-x-1/2 flex gap-2 bg-white p-1 rounded-md shadow-md border border-gray-200">
+          <button 
+            className="p-1 hover:bg-gray-100 rounded"
+            onClick={openEditModal}
+          >
+            <Pencil size={16} />
+          </button>
+          <button 
+            className="p-1 hover:bg-gray-100 rounded text-red-500"
+            onClick={handleDeleteElement}
+          >
+            <Trash2 size={16} />
+          </button>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ImageElement Component
+function ImageElementComponent({
+  element,
+  selected,
+  xPercent,
+  yPercent,
+  scaleFactor,
+  isEditingDisabled,
+  startDrag,
+  handleDeleteElement
+}: ImageElementProps) {
+  return (
+    <div 
+      key={element.id}
+      className={cn(
+        "absolute p-2",
+        !isEditingDisabled && "cursor-move",
+        selected && "border-2 border-dashed border-blue-500"
+      )}
+      style={{
+        left: `${xPercent}%`,
+        top: `${yPercent}%`,
+        transform: 'translate(-50%, -50%)', // Center on the coordinates
+      }}
+      onClick={(e) => e.stopPropagation()}
+      onMouseDown={(e) => !isEditingDisabled && startDrag(e, element.id)}
+    >
+      <div className="overflow-hidden" style={{ width: element.width * scaleFactor + 'px' }}>
+        <img 
+          src={element.imageUrl} 
+          alt="User added image" 
+          className="w-full object-contain select-none"
+          draggable="false"
+          onDragStart={(e) => e.preventDefault()}
+        />
+      </div>
+      
+      {/* Controls that appear when selected */}
+      {selected && !isEditingDisabled && (
+        <div className="absolute -bottom-10 left-1/2 transform -translate-x-1/2 flex gap-2 bg-white p-1 rounded-md shadow-md border border-gray-200">
+          <button 
+            className="p-1 hover:bg-gray-100 rounded text-red-500"
+            onClick={handleDeleteElement}
+          >
+            <Trash2 size={16} />
+          </button>
+        </div>
+      )}
+    </div>
+  );
+}
+
 function ElementRenderer() {
   const elements = useEditorStore((state) => state.elements);
   const isElementSelected = useEditorStore((state) => state.isElementSelected);
@@ -121,6 +251,7 @@ function ElementRenderer() {
   const deleteElement = useEditorStore((state) => state.deleteElement);
   const updateTextElement = useEditorStore((state) => state.updateTextElement);
   const selectedElementId = useEditorStore((state) => state.editorState.selectedElementId);
+  const isEditingDisabled = useEditorStore((state) => state.editorState.isEditingDisabled);
   
   // For text editing modal
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
@@ -131,8 +262,31 @@ function ElementRenderer() {
   const [draggedElementId, setDraggedElementId] = useState<string | null>(null);
   const containerRef = useRef<HTMLDivElement>(null);
   
+  // For scaling calculations
+  const [scaleFactor, setScaleFactor] = useState(1);
+  
   // Find the selected element for the modal
   const selectedElement = elements.find(el => el.id === selectedElementId);
+  
+  // Calculate scale factor on mount and window resize
+  useEffect(() => {
+    const calculateScaleFactor = () => {
+      if (containerRef.current) {
+        const containerWidth = containerRef.current.getBoundingClientRect().width;
+        setScaleFactor(containerWidth / 1080);
+      }
+    };
+    
+    // Calculate on mount
+    calculateScaleFactor();
+    
+    // Calculate on window resize
+    window.addEventListener('resize', calculateScaleFactor);
+    
+    return () => {
+      window.removeEventListener('resize', calculateScaleFactor);
+    };
+  }, []);
   
   // Get text of selected element for the modal
   useEffect(() => {
@@ -143,6 +297,7 @@ function ElementRenderer() {
   
   // Open edit modal for text elements
   const openEditModal = (e: React.MouseEvent) => {
+    if (isEditingDisabled) return;
     e.stopPropagation();
     if (selectedElement && selectedElement.type === 'text') {
       setIsEditModalOpen(true);
@@ -151,6 +306,7 @@ function ElementRenderer() {
   
   // Handle saving text from the modal
   const handleSaveText = (newText: string) => {
+    if (isEditingDisabled) return;
     if (selectedElementId) {
       updateTextElement(selectedElementId, newText);
     }
@@ -158,6 +314,7 @@ function ElementRenderer() {
   
   // Handle deleting an element
   const handleDeleteElement = (e: React.MouseEvent) => {
+    if (isEditingDisabled) return;
     e.stopPropagation();
     // Clear any active drag state
     setDragging(false);
@@ -170,6 +327,7 @@ function ElementRenderer() {
   
   // Handle canvas click (deselect when clicking on empty space)
   const handleCanvasClick = (e: React.MouseEvent) => {
+    if (isEditingDisabled) return;
     // Only deselect if clicking directly on the container (not on an element)
     if (e.target === e.currentTarget) {
       selectElement(null);
@@ -178,6 +336,7 @@ function ElementRenderer() {
   
   // Start dragging an element
   const startDrag = (e: React.MouseEvent, elementId: string) => {
+    if (isEditingDisabled) return;
     e.stopPropagation();
     
     selectElement(elementId);
@@ -187,7 +346,7 @@ function ElementRenderer() {
   
   // Handle mouse move for dragging
   useEffect(() => {
-    if (!dragging || !draggedElementId || !containerRef.current) return;
+    if (isEditingDisabled || !dragging || !draggedElementId || !containerRef.current) return;
     
     const handleMouseMove = (e: MouseEvent) => {
       if (!containerRef.current) return;
@@ -219,7 +378,7 @@ function ElementRenderer() {
       window.removeEventListener('mousemove', handleMouseMove);
       window.removeEventListener('mouseup', handleMouseUp);
     };
-  }, [dragging, draggedElementId, updateElementPosition]);
+  }, [isEditingDisabled, dragging, draggedElementId, updateElementPosition]);
   
   return (
     <div 
@@ -231,95 +390,39 @@ function ElementRenderer() {
         // Scale calculations: our design space is 1080x1920, but we're rendering in a responsive container
         const xPercent = (element.x / 1080) * 100;
         const yPercent = (element.y / 1920) * 100;
-        const selected = isElementSelected(element.id);
-        
-        // For image elements, calculate a scale factor based on container width
-        let scaleFactor = 1;
-        if (containerRef.current) {
-          const containerWidth = containerRef.current.getBoundingClientRect().width;
-          scaleFactor = containerWidth / 1080;
-        }
+        const selected = !isEditingDisabled && isElementSelected(element.id);
         
         // Render based on element type
         if (element.type === 'text') {
           return (
-            <div 
+            <TextElementComponent
               key={element.id}
-              className={cn(
-                "absolute p-2 cursor-move",
-                selected && "border-2 border-dashed border-blue-500"
-              )}
-              style={{
-                left: `${xPercent}%`,
-                top: `${yPercent}%`,
-                transform: 'translate(-50%, -50%)', // Center on the coordinates
-                userSelect: 'none', // Prevent text selection when dragging
-              }}
-              onClick={(e) => e.stopPropagation()}
-              onMouseDown={(e) => startDrag(e, element.id)}
-            >
-              <p className="text-xl whitespace-nowrap select-none">{element.text}</p>
-              
-              {/* Controls that appear when selected */}
-              {selected && (
-                <div className="absolute -bottom-10 left-1/2 transform -translate-x-1/2 flex gap-2 bg-white p-1 rounded-md shadow-md border border-gray-200">
-                  <button 
-                    className="p-1 hover:bg-gray-100 rounded"
-                    onClick={openEditModal}
-                  >
-                    <Pencil size={16} />
-                  </button>
-                  <button 
-                    className="p-1 hover:bg-gray-100 rounded text-red-500"
-                    onClick={handleDeleteElement}
-                  >
-                    <Trash2 size={16} />
-                  </button>
-                </div>
-              )}
-            </div>
+              element={element}
+              selected={selected}
+              xPercent={xPercent}
+              yPercent={yPercent}
+              isEditingDisabled={isEditingDisabled}
+              startDrag={startDrag}
+              openEditModal={openEditModal}
+              handleDeleteElement={handleDeleteElement}
+            />
           );
         }
         
         // Render image elements
         if (element.type === 'image') {
           return (
-            <div 
+            <ImageElementComponent
               key={element.id}
-              className={cn(
-                "absolute p-2 cursor-move",
-                selected && "border-2 border-dashed border-blue-500"
-              )}
-              style={{
-                left: `${xPercent}%`,
-                top: `${yPercent}%`,
-                transform: 'translate(-50%, -50%)', // Center on the coordinates
-              }}
-              onClick={(e) => e.stopPropagation()}
-              onMouseDown={(e) => startDrag(e, element.id)}
-            >
-              <div className="overflow-hidden" style={{ width: element.width * scaleFactor + 'px' }}>
-                <img 
-                  src={element.imageUrl} 
-                  alt="User added image" 
-                  className="w-full object-contain select-none"
-                  draggable="false"
-                  onDragStart={(e) => e.preventDefault()}
-                />
-              </div>
-              
-              {/* Controls that appear when selected */}
-              {selected && (
-                <div className="absolute -bottom-10 left-1/2 transform -translate-x-1/2 flex gap-2 bg-white p-1 rounded-md shadow-md border border-gray-200">
-                  <button 
-                    className="p-1 hover:bg-gray-100 rounded text-red-500"
-                    onClick={handleDeleteElement}
-                  >
-                    <Trash2 size={16} />
-                  </button>
-                </div>
-              )}
-            </div>
+              element={element}
+              selected={selected}
+              xPercent={xPercent}
+              yPercent={yPercent}
+              scaleFactor={scaleFactor}
+              isEditingDisabled={isEditingDisabled}
+              startDrag={startDrag}
+              handleDeleteElement={handleDeleteElement}
+            />
           );
         }
         
@@ -342,44 +445,80 @@ export const Route = createFileRoute("/create")({
 });
 
 function RouteComponent() {
+  const isEditingDisabled = useEditorStore((state) => state.editorState.isEditingDisabled);
+  const setEditingDisabled = useEditorStore((state) => state.setEditingDisabled);
+
   return (
     <div className="h-screen w-full overflow-y-auto md:pt-12">
       <div className={cn(
-        "grid grid-row-1 md:grid-cols-[1fr_1fr_1fr] grid-cols-[auto_auto_auto] h-full",
-        DEBUG_LAYOUT && "bg-green-500/20"
+        "grid grid-row-1 md:grid-cols-[1fr_1fr_auto] grid-cols-[auto_auto_auto] h-full",
+        DEBUG_LAYOUT && !isEditingDisabled && "bg-green-500/20"
       )}>
-        <div className={cn(
-          "w-full z-20",
-          DEBUG_LAYOUT && "bg-pink-500/20"
-        )}>
-          <DebugPanel />
-        </div>
+        {!isEditingDisabled ? (
+          <div className={cn(
+            "w-full z-20",
+            DEBUG_LAYOUT && "bg-pink-500/20"
+          )}>
+            <DebugPanel />
+          </div>
+        ) : (
+          <div className="w-full">
+            {/* Empty placeholder with similar dimensions to maintain layout */}
+            <div className="m-4 opacity-0 h-[calc(100vh-8rem)]">
+              <div className="mb-2 h-8"></div>
+              <div className="h-full"></div>
+            </div>
+          </div>
+        )}
+        
         {/* Content */}
-        <div className="max-h-screen md:border-black md:border-1 md:rounded-xs md:shadow-xs bg-neutral-100 aspect-9/16 overflow-clip relative">
+        <div className="max-h-[calc(100vh-4rem)] md:border-black md:border-1 md:rounded-xs md:shadow-xs bg-neutral-100 aspect-9/16 overflow-clip relative">
           {/* Content Editor View */}
           <ElementRenderer />
         </div>
-        {/* we'll put this on top of the center column with col-start-2 col-end-3 row-start-1 row-end-2 eventuall */}
+        
+        {/* Right column with editor buttons */}
         <div className={cn(
           "w-full",
-          DEBUG_LAYOUT && "bg-blue-500/20"
+          DEBUG_LAYOUT && !isEditingDisabled && "bg-blue-500/20"
         )}>
-          {/* buttons */}
-          <div className="flex flex-col gap-2 px-2 ">
-            <div 
-              className="w-12 h-12 border border-black rounded-xs shadow-sm flex items-center justify-center cursor-pointer hover:bg-gray-100"
-              onClick={() => useEditorStore.getState().addTextElement("edit me", 540, 960)}
-            >
-              <Type />
-            </div>
-            <div className="w-12 h-12 border border-black rounded-xs shadow-sm flex items-center justify-center">
-              <Sticker />
-            </div>
-            <div 
-              className="w-12 h-12 border border-black rounded-xs shadow-sm flex items-center justify-center cursor-pointer hover:bg-gray-100"
-              onClick={() => useEditorStore.getState().addImageElement("https://blob.satellite.earth/75fc2f4692566ddf090748e8d53cb1863ec93fa784ccedd533dcdd9ecbad159d", 540, 960)}
-            >
-              <Image />
+          {/* Editor buttons container with flex to position groups */}
+          <div className="h-full flex flex-col justify-between px-2">
+            {/* Top buttons group */}
+            {!isEditingDisabled ? (
+              <div className="flex flex-col gap-2 mt-2">
+                <div 
+                  className="w-12 h-12 border border-black rounded-xs shadow-sm flex items-center justify-center cursor-pointer hover:bg-gray-100"
+                  onClick={() => useEditorStore.getState().addTextElement("edit me", 540, 960)}
+                >
+                  <Type />
+                </div>
+                <div className="w-12 h-12 border border-black rounded-xs shadow-sm flex items-center justify-center">
+                  <Sticker />
+                </div>
+                <div 
+                  className="w-12 h-12 border border-black rounded-xs shadow-sm flex items-center justify-center cursor-pointer hover:bg-gray-100"
+                  onClick={() => useEditorStore.getState().addImageElement("https://blob.satellite.earth/75fc2f4692566ddf090748e8d53cb1863ec93fa784ccedd533dcdd9ecbad159d", 540, 960)}
+                >
+                  <Image />
+                </div>
+              </div>
+            ) : (
+              <div className="flex flex-col gap-2 mt-2 opacity-0">
+                <div className="w-12 h-12"></div>
+                <div className="w-12 h-12"></div>
+                <div className="w-12 h-12"></div>
+              </div>
+            )}
+            
+            {/* Bottom button group - always visible */}
+            <div className="flex flex-col gap-2 mb-4">
+              <div 
+                className="w-12 h-12 border border-black rounded-xs shadow-sm flex items-center justify-center cursor-pointer hover:bg-gray-100"
+                onClick={() => setEditingDisabled(!isEditingDisabled)}
+              >
+                {isEditingDisabled ? <Eye /> : <EyeOff />}
+              </div>
             </div>
           </div>
         </div>
@@ -387,3 +526,4 @@ function RouteComponent() {
     </div>
   );
 }
+

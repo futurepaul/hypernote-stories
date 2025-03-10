@@ -1,35 +1,36 @@
 import { create } from 'zustand'
 
-type ElementType = 'text' | 'sticker' | 'image'
+export type ElementType = 'text' | 'sticker' | 'image'
 
-interface BaseElement {
+export interface BaseElement {
   id: string
   type: ElementType
   x: number
   y: number
 }
 
-interface TextElement extends BaseElement {
+export interface TextElement extends BaseElement {
   type: 'text'
   text: string
 }
 
-interface StickerElement extends BaseElement {
+export interface StickerElement extends BaseElement {
   type: 'sticker'
   stickerId: string
 }
 
-interface ImageElement extends BaseElement {
+export interface ImageElement extends BaseElement {
   type: 'image'
   imageUrl: string
   width: number
 }
 
-type Element = TextElement | StickerElement | ImageElement
+export type Element = TextElement | StickerElement | ImageElement
 
 // Editor state separate from content
 interface EditorState {
   selectedElementId: string | null
+  isEditingDisabled: boolean
 }
 
 interface EditorStore {
@@ -50,12 +51,14 @@ interface EditorStore {
   // Editor operations
   selectElement: (id: string | null) => void
   isElementSelected: (id: string) => boolean
+  setEditingDisabled: (disabled: boolean) => void
 }
 
 export const useEditorStore = create<EditorStore>((set, get) => ({
   elements: [],
   editorState: {
-    selectedElementId: null
+    selectedElementId: null,
+    isEditingDisabled: false
   },
   
   addTextElement: (text: string, x: number, y: number) => {
@@ -145,7 +148,8 @@ export const useEditorStore = create<EditorStore>((set, get) => ({
     set(() => ({
       elements: [],
       editorState: {
-        selectedElementId: null
+        selectedElementId: null,
+        isEditingDisabled: false
       }
     }))
   },
@@ -161,5 +165,14 @@ export const useEditorStore = create<EditorStore>((set, get) => ({
   
   isElementSelected: (id: string) => {
     return get().editorState.selectedElementId === id;
+  },
+  
+  setEditingDisabled: (disabled: boolean) => {
+    set((state) => ({
+      editorState: {
+        ...state.editorState,
+        isEditingDisabled: disabled
+      }
+    }))
   }
 })) 
