@@ -31,19 +31,19 @@ function Index() {
       {stories.map((story) => (
         <div key={story.id} className="relative snap-start snap-always">
           {/* This is the scroll anchor point - it will snap to the top of the viewport */}
-          <div className="h-0 md:h-24 w-full invisible"></div>
+          <div className="h-0 md:h-16 w-full invisible"></div>
 
           {/* The actual card with margin from the anchor point */}
           <div
             className={
-              "relative h-[calc(100vh-4rem)] md:border-black md:border-2 md:rounded-xs md:shadow-xs w-full md:h-[calc(100vh-12rem)] md:max-w-[420px] md:mx-auto"
+              "relative max-h-[100svh] md:max-h-[calc(100vh-7rem)] md:border-black md:border-2 md:rounded-xs md:shadow-xs aspect-9/16 mx-auto overflow-clip"
             }
           >
             <StoryView post={story} />
           </div>
 
           {/* Bottom spacing */}
-          <div className="h-0 md:h-24 w-full invisible"></div>
+          <div className="h-0 md:h-12 w-full invisible"></div>
         </div>
       ))}
     </div>
