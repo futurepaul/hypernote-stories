@@ -12,6 +12,7 @@
 
 import { Route as rootRoute } from './routes/__root'
 import { Route as ProductsImport } from './routes/products'
+import { Route as GridTesterImport } from './routes/grid-tester'
 import { Route as CreateImport } from './routes/create'
 import { Route as IndexImport } from './routes/index'
 import { Route as PostsIndexImport } from './routes/posts.index'
@@ -22,6 +23,12 @@ import { Route as PostsPostIdImport } from './routes/posts.$postId'
 const ProductsRoute = ProductsImport.update({
   id: '/products',
   path: '/products',
+  getParentRoute: () => rootRoute,
+} as any)
+
+const GridTesterRoute = GridTesterImport.update({
+  id: '/grid-tester',
+  path: '/grid-tester',
   getParentRoute: () => rootRoute,
 } as any)
 
@@ -67,6 +74,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof CreateImport
       parentRoute: typeof rootRoute
     }
+    '/grid-tester': {
+      id: '/grid-tester'
+      path: '/grid-tester'
+      fullPath: '/grid-tester'
+      preLoaderRoute: typeof GridTesterImport
+      parentRoute: typeof rootRoute
+    }
     '/products': {
       id: '/products'
       path: '/products'
@@ -96,6 +110,7 @@ declare module '@tanstack/react-router' {
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/create': typeof CreateRoute
+  '/grid-tester': typeof GridTesterRoute
   '/products': typeof ProductsRoute
   '/posts/$postId': typeof PostsPostIdRoute
   '/posts': typeof PostsIndexRoute
@@ -104,6 +119,7 @@ export interface FileRoutesByFullPath {
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/create': typeof CreateRoute
+  '/grid-tester': typeof GridTesterRoute
   '/products': typeof ProductsRoute
   '/posts/$postId': typeof PostsPostIdRoute
   '/posts': typeof PostsIndexRoute
@@ -113,6 +129,7 @@ export interface FileRoutesById {
   __root__: typeof rootRoute
   '/': typeof IndexRoute
   '/create': typeof CreateRoute
+  '/grid-tester': typeof GridTesterRoute
   '/products': typeof ProductsRoute
   '/posts/$postId': typeof PostsPostIdRoute
   '/posts/': typeof PostsIndexRoute
@@ -120,16 +137,36 @@ export interface FileRoutesById {
 
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
-  fullPaths: '/' | '/create' | '/products' | '/posts/$postId' | '/posts'
+  fullPaths:
+    | '/'
+    | '/create'
+    | '/grid-tester'
+    | '/products'
+    | '/posts/$postId'
+    | '/posts'
   fileRoutesByTo: FileRoutesByTo
-  to: '/' | '/create' | '/products' | '/posts/$postId' | '/posts'
-  id: '__root__' | '/' | '/create' | '/products' | '/posts/$postId' | '/posts/'
+  to:
+    | '/'
+    | '/create'
+    | '/grid-tester'
+    | '/products'
+    | '/posts/$postId'
+    | '/posts'
+  id:
+    | '__root__'
+    | '/'
+    | '/create'
+    | '/grid-tester'
+    | '/products'
+    | '/posts/$postId'
+    | '/posts/'
   fileRoutesById: FileRoutesById
 }
 
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   CreateRoute: typeof CreateRoute
+  GridTesterRoute: typeof GridTesterRoute
   ProductsRoute: typeof ProductsRoute
   PostsPostIdRoute: typeof PostsPostIdRoute
   PostsIndexRoute: typeof PostsIndexRoute
@@ -138,6 +175,7 @@ export interface RootRouteChildren {
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   CreateRoute: CreateRoute,
+  GridTesterRoute: GridTesterRoute,
   ProductsRoute: ProductsRoute,
   PostsPostIdRoute: PostsPostIdRoute,
   PostsIndexRoute: PostsIndexRoute,
@@ -155,6 +193,7 @@ export const routeTree = rootRoute
       "children": [
         "/",
         "/create",
+        "/grid-tester",
         "/products",
         "/posts/$postId",
         "/posts/"
@@ -165,6 +204,9 @@ export const routeTree = rootRoute
     },
     "/create": {
       "filePath": "create.tsx"
+    },
+    "/grid-tester": {
+      "filePath": "grid-tester.tsx"
     },
     "/products": {
       "filePath": "products.tsx"
