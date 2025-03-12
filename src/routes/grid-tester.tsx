@@ -34,8 +34,9 @@ function SingleRow() {
           </div>
         )}
       </div>
-      <div className="absolute bg-blue-500/20 flex item-center w-full justify-center col-start-1 col-end-2 md:col-start-2 md:col-end-3 z-20 md:static">
-        <div className="bg-green-500/20 aspect-9/16 h-screen overflow-clip">
+      <div className="absolute bg-blue-500/20 border border-pink-500 self-center flex item-center w-full justify-center col-start-1 col-end-2 md:col-start-2 md:col-end-3 z-20 md:static">
+        {/* THIS IS THE IMPORTANT THING. IT MUST BE 9/16!!! */}
+        <div className="bg-green-500/20 border-yellow-500 border aspect-9/16 h-screen overflow-clip">
           <div className="bg-red-500/10 w-full">testing 123</div>
           <div className="bg-blue-500/10 h-full">testing 456</div>
         </div>
