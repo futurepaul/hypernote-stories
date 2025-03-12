@@ -13,6 +13,7 @@ export interface TextElement extends BaseElement {
   type: 'text'
   text: string
   font?: string
+  size: 'sm' | 'md' | 'lg'
 }
 
 export interface StickerElement extends BaseElement {
@@ -48,6 +49,7 @@ interface EditorStore {
   deleteElement: (id: string) => void
   updateTextElement: (id: string, text: string) => void
   updateTextElementFont: (id: string, font: string) => void
+  updateTextElementSize: (id: string, size: 'sm' | 'md' | 'lg') => void
   clearElements: () => void
   
   // Editor operations
@@ -74,6 +76,7 @@ export const useEditorStore = create<EditorStore>((set, get) => ({
           text,
           x,
           y,
+          size: 'md', // Default size
         },
       ],
     }))
@@ -151,6 +154,16 @@ export const useEditorStore = create<EditorStore>((set, get) => ({
       elements: state.elements.map(element => 
         element.id === id && element.type === 'text' 
           ? { ...element, font } 
+          : element
+      )
+    }))
+  },
+  
+  updateTextElementSize: (id: string, size: 'sm' | 'md' | 'lg') => {
+    set((state) => ({
+      elements: state.elements.map(element => 
+        element.id === id && element.type === 'text' 
+          ? { ...element, size } 
           : element
       )
     }))

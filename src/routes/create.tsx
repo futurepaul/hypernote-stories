@@ -73,21 +73,25 @@ function TextEditModal({
   onClose,
   initialText,
   initialFont,
+  initialSize,
   onSave,
 }: {
   isOpen: boolean;
   onClose: () => void;
   initialText: string;
   initialFont?: string;
-  onSave: (text: string, font?: string) => void;
+  initialSize: 'sm' | 'md' | 'lg';
+  onSave: (text: string, font?: string, size?: 'sm' | 'md' | 'lg') => void;
 }) {
   const [text, setText] = useState(initialText);
   const [font, setFont] = useState(initialFont || "default");
+  const [size, setSize] = useState<'sm' | 'md' | 'lg'>(initialSize || 'md');
 
   useEffect(() => {
     setText(initialText);
     setFont(initialFont || "default");
-  }, [initialText, initialFont]);
+    setSize(initialSize || 'md');
+  }, [initialText, initialFont, initialSize]);
 
   // Font options from the CSS variables
   const fontOptions = [
@@ -125,7 +129,9 @@ function TextEditModal({
           onChange={(e) => setText(e.target.value)}
           className={cn("w-full border border-gray-300 rounded-md p-2 min-h-[100px]", font !== "default" && `font-${font}`)}
           autoFocus
+          placeholder="Enter your text here..."
         />
+        <p className="text-xs text-gray-500 mt-1">Press Enter/Return to create multiline text</p>
         
         <div className="mt-4">
           <label className="block text-sm font-medium text-gray-700 mb-1">
@@ -149,6 +155,47 @@ function TextEditModal({
           </Select>
         </div>
         
+        <div className="mt-4">
+          <label className="block text-sm font-medium text-gray-700 mb-1">
+            Size
+          </label>
+          <div className="flex gap-2">
+            <button
+              onClick={() => setSize('sm')}
+              className={cn(
+                "flex-1 py-2 border rounded-md",
+                size === 'sm' 
+                  ? "bg-blue-100 border-blue-500" 
+                  : "border-gray-300 hover:bg-gray-50"
+              )}
+            >
+              Small
+            </button>
+            <button
+              onClick={() => setSize('md')}
+              className={cn(
+                "flex-1 py-2 border rounded-md",
+                size === 'md' 
+                  ? "bg-blue-100 border-blue-500" 
+                  : "border-gray-300 hover:bg-gray-50"
+              )}
+            >
+              Medium
+            </button>
+            <button
+              onClick={() => setSize('lg')}
+              className={cn(
+                "flex-1 py-2 border rounded-md",
+                size === 'lg' 
+                  ? "bg-blue-100 border-blue-500" 
+                  : "border-gray-300 hover:bg-gray-50"
+              )}
+            >
+              Large
+            </button>
+          </div>
+        </div>
+        
         <div className="flex justify-end gap-2 mt-4">
           <button
             onClick={onClose}
@@ -158,7 +205,7 @@ function TextEditModal({
           </button>
           <button
             onClick={() => {
-              onSave(text, font === "default" ? undefined : font);
+              onSave(text, font === "default" ? undefined : font, size);
               onClose();
             }}
             className="px-3 py-1 bg-blue-500 text-white rounded-md hover:bg-blue-600"
@@ -181,6 +228,7 @@ interface TextElementProps {
   selected: boolean;
   xPercent: number;
   yPercent: number;
+  scaleFactor: number;
   isEditingDisabled: boolean;
   startDrag: (e: React.MouseEvent, elementId: string) => void;
   openEditModal: (e: React.MouseEvent) => void;
@@ -204,11 +252,26 @@ function TextElementComponent({
   selected,
   xPercent,
   yPercent,
+  scaleFactor,
   isEditingDisabled,
   startDrag,
   openEditModal,
   handleDeleteElement,
 }: TextElementProps) {
+  // Define font sizes based on the element size and scale factor
+  // These values are in pixels and will be scaled by the scaleFactor
+  const fontSizes = {
+    sm: 48, // Small text - 48px base size
+    md: 72, // Medium text - 72px base size
+    lg: 144, // Large text - 144px base size
+  };
+
+  // Calculate the actual font size based on the element size and scale factor
+  const fontSize = fontSizes[element.size] * scaleFactor;
+  
+  // Split text by newlines to create multiline text
+  const textLines = element.text.split('\n');
+
   return (
     <div
       key={element.id}
@@ -226,7 +289,20 @@ function TextElementComponent({
       onClick={(e) => e.stopPropagation()}
       onMouseDown={(e) => !isEditingDisabled && startDrag(e, element.id)}
     >
-      <p className={cn("text-xl whitespace-nowrap select-none", element.font && element.font !== "default" && `font-${element.font}`)}>{element.text}</p>
+      <div className="flex flex-col items-center text-center">
+        {textLines.map((line, index) => (
+          <p 
+            key={index}
+            className={cn(
+              "whitespace-nowrap select-none leading-tight", 
+              element.font && element.font !== "default" && `font-${element.font}`
+            )}
+            style={{ fontSize: `${fontSize}px` }}
+          >
+            {line || " "} {/* Render a space for empty lines to maintain height */}
+          </p>
+        ))}
+      </div>
 
       {/* Controls that appear when selected */}
       {selected && !isEditingDisabled && (
@@ -374,12 +450,15 @@ function ElementRenderer() {
   };
 
   // Handle saving text from the modal
-  const handleSaveText = (newText: string, font?: string) => {
+  const handleSaveText = (newText: string, font?: string, size?: 'sm' | 'md' | 'lg') => {
     if (isEditingDisabled) return;
     if (selectedElementId) {
       updateTextElement(selectedElementId, newText);
       if (font !== undefined) {
         useEditorStore.getState().updateTextElementFont(selectedElementId, font);
+      }
+      if (size !== undefined) {
+        useEditorStore.getState().updateTextElementSize(selectedElementId, size);
       }
     }
   };
@@ -479,6 +558,7 @@ function ElementRenderer() {
               selected={selected}
               xPercent={xPercent}
               yPercent={yPercent}
+              scaleFactor={scaleFactor}
               isEditingDisabled={isEditingDisabled}
               startDrag={startDrag}
               openEditModal={openEditModal}
@@ -513,6 +593,7 @@ function ElementRenderer() {
         onClose={() => setIsEditModalOpen(false)}
         initialText={editingText}
         initialFont={selectedTextElement?.font}
+        initialSize={selectedTextElement?.size || 'md'}
         onSave={handleSaveText}
       />
     </div>
