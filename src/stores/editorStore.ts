@@ -12,6 +12,7 @@ export interface BaseElement {
 export interface TextElement extends BaseElement {
   type: 'text'
   text: string
+  font?: string
 }
 
 export interface StickerElement extends BaseElement {
@@ -46,6 +47,7 @@ interface EditorStore {
   updateElementPosition: (id: string, x: number, y: number) => void
   deleteElement: (id: string) => void
   updateTextElement: (id: string, text: string) => void
+  updateTextElementFont: (id: string, font: string) => void
   clearElements: () => void
   
   // Editor operations
@@ -139,6 +141,16 @@ export const useEditorStore = create<EditorStore>((set, get) => ({
       elements: state.elements.map(element => 
         element.id === id && element.type === 'text' 
           ? { ...element, text } 
+          : element
+      )
+    }))
+  },
+  
+  updateTextElementFont: (id: string, font: string) => {
+    set((state) => ({
+      elements: state.elements.map(element => 
+        element.id === id && element.type === 'text' 
+          ? { ...element, font } 
           : element
       )
     }))

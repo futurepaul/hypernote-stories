@@ -19,10 +19,19 @@ import {
 } from "lucide-react";
 import { useEditorStore } from "@/stores/editorStore";
 import { useState, useRef, useEffect } from "react";
+import { createPortal } from "react-dom";
 import { cn } from "../lib/utils";
 import { SingleRow } from "@/components/GridLayout";
 // Import element types directly from the editor store
 import type { TextElement, ImageElement } from "@/stores/editorStore";
+// Import shadcn select components
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 
 const DEBUG_LAYOUT = false;
 
@@ -63,24 +72,48 @@ function TextEditModal({
   isOpen,
   onClose,
   initialText,
+  initialFont,
   onSave,
 }: {
   isOpen: boolean;
   onClose: () => void;
   initialText: string;
-  onSave: (text: string) => void;
+  initialFont?: string;
+  onSave: (text: string, font?: string) => void;
 }) {
   const [text, setText] = useState(initialText);
+  const [font, setFont] = useState(initialFont || "default");
 
   useEffect(() => {
     setText(initialText);
-  }, [initialText]);
+    setFont(initialFont || "default");
+  }, [initialText, initialFont]);
+
+  // Font options from the CSS variables
+  const fontOptions = [
+    { value: "default", label: "Default" },
+    { value: "systemui", label: "System UI" },
+    { value: "transitional", label: "Transitional" },
+    { value: "oldstyle", label: "Old Style" },
+    { value: "humanist", label: "Humanist" },
+    { value: "geohumanist", label: "Geo Humanist" },
+    { value: "classhuman", label: "Classic Humanist" },
+    { value: "neogrote", label: "Neo Grotesque" },
+    { value: "monoslab", label: "Mono Slab" },
+    { value: "monocode", label: "Mono Code" },
+    { value: "industrial", label: "Industrial" },
+    { value: "roundsans", label: "Round Sans" },
+    { value: "slabserif", label: "Slab Serif" },
+    { value: "antique", label: "Antique" },
+    { value: "didone", label: "Didone" },
+    { value: "handwritten", label: "Handwritten" },
+  ];
 
   if (!isOpen) return null;
 
-  return (
-    <div className="fixed inset-0 bg-black/30 flex items-center justify-center z-50">
-      <div className="bg-white rounded-md p-4 shadow-lg w-full max-w-md">
+  const modalContent = (
+    <div className="fixed inset-0 bg-black/30 flex items-center justify-center" style={{ zIndex: 300}}>
+      <div className="bg-white rounded-md p-4 shadow-lg w-full max-w-md relative" style={{ zIndex: 310 }}>
         <div className="flex justify-between items-center mb-4">
           <h3 className="font-bold">Edit Text</h3>
           <button onClick={onClose} className="p-1 hover:bg-gray-100 rounded">
@@ -90,9 +123,32 @@ function TextEditModal({
         <textarea
           value={text}
           onChange={(e) => setText(e.target.value)}
-          className="w-full border border-gray-300 rounded-md p-2 min-h-[100px]"
+          className={cn("w-full border border-gray-300 rounded-md p-2 min-h-[100px]", font !== "default" && `font-${font}`)}
           autoFocus
         />
+        
+        <div className="mt-4">
+          <label className="block text-sm font-medium text-gray-700 mb-1">
+            Font
+          </label>
+          <Select value={font} onValueChange={setFont}>
+            <SelectTrigger className="w-full">
+              <SelectValue placeholder="Select a font" />
+            </SelectTrigger>
+            <SelectContent side="bottom" align="start" className="max-h-[300px] overflow-y-auto">
+              {fontOptions.map((option) => (
+                <SelectItem 
+                  key={option.value} 
+                  value={option.value}
+                  className={option.value !== "default" ? `font-${option.value}` : ""}
+                >
+                  {option.label}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+        
         <div className="flex justify-end gap-2 mt-4">
           <button
             onClick={onClose}
@@ -102,7 +158,7 @@ function TextEditModal({
           </button>
           <button
             onClick={() => {
-              onSave(text);
+              onSave(text, font === "default" ? undefined : font);
               onClose();
             }}
             className="px-3 py-1 bg-blue-500 text-white rounded-md hover:bg-blue-600"
@@ -113,6 +169,10 @@ function TextEditModal({
       </div>
     </div>
   );
+
+  // Use createPortal to render the modal at the root of the document
+  // (Fixes z-index issues)
+  return createPortal(modalContent, document.body);
 }
 
 // Types for element components
@@ -166,7 +226,7 @@ function TextElementComponent({
       onClick={(e) => e.stopPropagation()}
       onMouseDown={(e) => !isEditingDisabled && startDrag(e, element.id)}
     >
-      <p className="text-xl whitespace-nowrap select-none">{element.text}</p>
+      <p className={cn("text-xl whitespace-nowrap select-none", element.font && element.font !== "default" && `font-${element.font}`)}>{element.text}</p>
 
       {/* Controls that appear when selected */}
       {selected && !isEditingDisabled && (
@@ -274,6 +334,7 @@ function ElementRenderer() {
 
   // Find the selected element for the modal
   const selectedElement = elements.find((el) => el.id === selectedElementId);
+  const selectedTextElement = selectedElement?.type === 'text' ? selectedElement : null;
 
   // Calculate scale factor on mount and window resize
   useEffect(() => {
@@ -313,10 +374,13 @@ function ElementRenderer() {
   };
 
   // Handle saving text from the modal
-  const handleSaveText = (newText: string) => {
+  const handleSaveText = (newText: string, font?: string) => {
     if (isEditingDisabled) return;
     if (selectedElementId) {
       updateTextElement(selectedElementId, newText);
+      if (font !== undefined) {
+        useEditorStore.getState().updateTextElementFont(selectedElementId, font);
+      }
     }
   };
 
@@ -448,6 +512,7 @@ function ElementRenderer() {
         isOpen={isEditModalOpen}
         onClose={() => setIsEditModalOpen(false)}
         initialText={editingText}
+        initialFont={selectedTextElement?.font}
         onSave={handleSaveText}
       />
     </div>
@@ -486,18 +551,20 @@ function RouteComponent() {
       {!isEditingDisabled ? (
         <div className="flex flex-col gap-2 mt-2">
           <div
-            className="w-12 h-12 border border-black rounded-xs shadow-sm flex items-center justify-center cursor-pointer hover:bg-gray-100 pointer-events-auto z-30"
+            className="w-12 h-12 border border-black rounded-xs shadow-sm flex items-center justify-center cursor-pointer hover:bg-gray-100 pointer-events-auto"
+            style={{ zIndex: 30 }}
             onClick={() =>
               useEditorStore.getState().addTextElement("edit me", 540, 960)
             }
           >
             <Type />
           </div>
-          <div className="w-12 h-12 border border-black rounded-xs shadow-sm flex items-center justify-center pointer-events-auto z-30">
+          <div className="w-12 h-12 border border-black rounded-xs shadow-sm flex items-center justify-center pointer-events-auto" style={{ zIndex: 30 }}>
             <Sticker />
           </div>
           <div
-            className="w-12 h-12 border border-black rounded-xs shadow-sm flex items-center justify-center cursor-pointer hover:bg-gray-100 pointer-events-auto z-30"
+            className="w-12 h-12 border border-black rounded-xs shadow-sm flex items-center justify-center cursor-pointer hover:bg-gray-100 pointer-events-auto"
+            style={{ zIndex: 30 }}
             onClick={() =>
               useEditorStore
                 .getState()
@@ -522,7 +589,8 @@ function RouteComponent() {
       {/* Bottom button group - always visible */}
       <div className="flex flex-col gap-2 mb-4">
         <div
-          className="w-12 h-12 border border-black rounded-xs shadow-sm flex items-center justify-center cursor-pointer hover:bg-gray-100 pointer-events-auto z-30"
+          className="w-12 h-12 border border-black rounded-xs shadow-sm flex items-center justify-center cursor-pointer hover:bg-gray-100 pointer-events-auto"
+          style={{ zIndex: 30 }}
           onClick={() => setEditingDisabled(!isEditingDisabled)}
         >
           {isEditingDisabled ? <Eye /> : <EyeOff />}
