@@ -84,10 +84,23 @@ class NostrService {
     try {
       // Make sure NDK is initialized
       if (!this.ndk) {
-        await new Promise(resolve => setTimeout(resolve, 500));
-        if (!this.ndk) {
-          throw new Error("NDK not initialized");
-        }
+        console.log("NDK not initialized, initializing now...");
+        const dexieAdapter = new NDKCacheAdapterDexie({ dbName: 'nostr-cache' });
+        
+        // Check if NIP-07 extension is available
+        const signer = await this.detectNip07Signer();
+        this._hasNip07Signer = !!signer;
+        
+        this.ndk = new NDK({
+          // cacheAdapter: dexieAdapter,
+          explicitRelayUrls: [
+            "wss://relay.nostr.net",
+            // Add more default relays as needed
+          ],
+          signer: signer,
+        });
+        
+        console.log("NDK initialized with signer:", !!signer);
       }
       
       await this.ndk.connect();

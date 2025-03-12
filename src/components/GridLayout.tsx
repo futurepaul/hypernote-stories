@@ -58,7 +58,7 @@ export function RightColumn({ children, className, editor }: LayoutProps) {
         "absolute flex item-center w-full justify-center col-start-1 col-end-2 md:col-start-3 md:col-end-4 md:static",
         SHOW_DEBUG_LAYOUT && "bg-green-500/20",
         className,
-        editor && "md:w-auto"
+        editor ? "md:w-auto" : "md:w-auto"
       )}
     >
       <div
@@ -66,7 +66,7 @@ export function RightColumn({ children, className, editor }: LayoutProps) {
           "h-screen aspect-9/16 overflow-clip flex flex-col",
           SHOW_DEBUG_LAYOUT && "bg-green-500/20",
           className,
-          editor && "md:aspect-auto"
+          editor ? "md:aspect-auto" : "md:aspect-auto"
         )}
       >
         {children}
@@ -87,9 +87,10 @@ interface SingleRowProps {
 export function SingleRow({ children, className, left, center, right, editor }: SingleRowProps) {
   return (
     <div className={cn(
-      "grid grid-cols-1 md:grid-cols-[1fr_1fr_auto] h-screen",
+      "grid grid-cols-1 h-screen",
       SHOW_DEBUG_LAYOUT && "bg-pink-500/50 md:bg-pink-500/10",
-      className
+      editor ? "md:grid-cols-[1fr_1fr_auto]" : "md:grid-cols-[1fr_1fr_auto]",
+      className,
     )}>
       <LeftColumn>
         {left}

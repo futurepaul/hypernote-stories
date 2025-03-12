@@ -17,3 +17,8 @@ export const authorKeys = {
     all: ['authors'] as const,
     details: (pubkey: string) => [...authorKeys.all, pubkey] as const,
 } as const
+
+export const hypernoteKeys = {
+    all: ['hypernotes'] as const,
+    details: (id: string) => [...hypernoteKeys.all, id] as const,
+} as const

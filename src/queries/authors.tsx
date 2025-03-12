@@ -10,15 +10,38 @@ export type NostrAuthor = {
   about?: string;
   picture?: string;
   nip05?: string;
+  raw_content?: string; // For debugging
 };
 
-const transformEvent = (event: NDKEvent): NostrAuthor => ({
-  id: event.pubkey,
-  name: event.tags.find(t => t[0] === "name")?.[1] || JSON.parse(event.content)?.name,
-  about: JSON.parse(event.content)?.about,
-  picture: JSON.parse(event.content)?.picture,
-  nip05: JSON.parse(event.content)?.nip05,
-});
+// Define the expected structure of the content
+interface AuthorContent {
+  name?: string;
+  about?: string;
+  picture?: string;
+  nip05?: string;
+  [key: string]: any; // Allow for other properties
+}
+
+const transformEvent = (event: NDKEvent): NostrAuthor => {
+  let parsedContent: AuthorContent = {};
+  
+  // Try to parse the content as JSON
+  try {
+    parsedContent = JSON.parse(event.content) as AuthorContent;
+  } catch (error) {
+    console.error("Error parsing author content:", error);
+    // If parsing fails, we'll use an empty object
+  }
+  
+  return {
+    id: event.pubkey,
+    name: parsedContent.name,
+    about: parsedContent.about,
+    picture: parsedContent.picture,
+    nip05: parsedContent.nip05,
+    raw_content: event.content, // Include raw content for debugging
+  };
+};
 
 export const fetchAuthor = async (pubkey: string) => {
   // Wait for connection if not already connected
