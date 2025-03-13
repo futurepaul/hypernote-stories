@@ -1,4 +1,5 @@
 import { create } from 'zustand'
+import { v4 as uuidv4 } from 'uuid'
 
 export type ElementType = 'text' | 'sticker' | 'image'
 
@@ -33,6 +34,10 @@ export type Element = TextElement | StickerElement | ImageElement
 interface EditorState {
   selectedElementId: string | null
   isEditingDisabled: boolean
+  isEditModalOpen: boolean
+  isPublishModalOpen: boolean
+  isImageModalOpen: boolean
+  editingText: string
 }
 
 interface EditorStore {
@@ -57,17 +62,30 @@ interface EditorStore {
   selectElement: (id: string | null) => void
   isElementSelected: (id: string) => boolean
   setEditingDisabled: (disabled: boolean) => void
+  
+  // Modal actions
+  openEditModal: () => void
+  closeEditModal: () => void
+  openPublishModal: () => void
+  closePublishModal: () => void
+  openImageModal: () => void
+  closeImageModal: () => void
+  setEditingText: (text: string) => void
 }
 
 export const useEditorStore = create<EditorStore>((set, get) => ({
   elements: [],
   editorState: {
     selectedElementId: null,
-    isEditingDisabled: false
+    isEditingDisabled: false,
+    isEditModalOpen: false,
+    isPublishModalOpen: false,
+    isImageModalOpen: false,
+    editingText: "",
   },
   
   addTextElement: (text: string, x: number, y: number) => {
-    const id = crypto.randomUUID();
+    const id = uuidv4();
     set((state) => ({
       elements: [
         ...state.elements,
@@ -86,7 +104,7 @@ export const useEditorStore = create<EditorStore>((set, get) => ({
   },
 
   addStickerElement: (stickerId: string, x: number, y: number) => {
-    const id = crypto.randomUUID();
+    const id = uuidv4();
     set((state) => ({
       elements: [
         ...state.elements,
@@ -104,7 +122,7 @@ export const useEditorStore = create<EditorStore>((set, get) => ({
   },
 
   addImageElement: (imageUrl: string, x: number, y: number) => {
-    const id = crypto.randomUUID();
+    const id = uuidv4();
     set((state) => ({
       elements: [
         ...state.elements,
@@ -185,7 +203,11 @@ export const useEditorStore = create<EditorStore>((set, get) => ({
       elements: [],
       editorState: {
         selectedElementId: null,
-        isEditingDisabled: false
+        isEditingDisabled: false,
+        isEditModalOpen: false,
+        isPublishModalOpen: false,
+        isImageModalOpen: false,
+        editingText: "",
       }
     }))
   },
@@ -209,6 +231,48 @@ export const useEditorStore = create<EditorStore>((set, get) => ({
         ...state.editorState,
         isEditingDisabled: disabled
       }
+    }))
+  },
+  
+  openEditModal: () => {
+    set((state) => ({
+      editorState: { ...state.editorState, isEditModalOpen: true },
+    }))
+  },
+  
+  closeEditModal: () => {
+    set((state) => ({
+      editorState: { ...state.editorState, isEditModalOpen: false },
+    }))
+  },
+  
+  openPublishModal: () => {
+    set((state) => ({
+      editorState: { ...state.editorState, isPublishModalOpen: true },
+    }))
+  },
+  
+  closePublishModal: () => {
+    set((state) => ({
+      editorState: { ...state.editorState, isPublishModalOpen: false },
+    }))
+  },
+  
+  openImageModal: () => {
+    set((state) => ({
+      editorState: { ...state.editorState, isImageModalOpen: true },
+    }))
+  },
+  
+  closeImageModal: () => {
+    set((state) => ({
+      editorState: { ...state.editorState, isImageModalOpen: false },
+    }))
+  },
+  
+  setEditingText: (text: string) => {
+    set((state) => ({
+      editorState: { ...state.editorState, editingText: text },
     }))
   }
 })) 

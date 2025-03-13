@@ -1,125 +1,12 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useQuery, useSuspenseQuery } from "@tanstack/react-query";
-import { useEffect, useState, useRef } from "react";
+import { useState, useEffect } from "react";
 import { SingleRow } from "@/components/GridLayout";
 import { hypernotesQueryOptions } from "@/queries/hypernotes";
 import { authorQueryOptions } from "@/queries/authors";
 import { Heart, Share2 } from "lucide-react";
 import { cn } from "@/lib/utils";
-
-// Import the ElementRenderer logic from create.tsx but simplified for viewing only
-function ElementRenderer({ elements }) {
-  const containerRef = useRef(null);
-  const [scaleFactor, setScaleFactor] = useState(1);
-
-  // Calculate scale factor on mount and window resize
-  useEffect(() => {
-    const calculateScaleFactor = () => {
-      if (containerRef.current) {
-        const containerWidth =
-          containerRef.current.getBoundingClientRect().width;
-        setScaleFactor(containerWidth / 1080);
-      }
-    };
-
-    // Calculate on mount
-    calculateScaleFactor();
-
-    // Calculate on window resize
-    window.addEventListener("resize", calculateScaleFactor);
-
-    return () => {
-      window.removeEventListener("resize", calculateScaleFactor);
-    };
-  }, []);
-
-  return (
-    <div ref={containerRef} className="w-full h-full relative select-none">
-      {elements.map((element) => {
-        // Scale calculations: our design space is 1080x1920, but we're rendering in a responsive container
-        const xPercent = (element.x / 1080) * 100;
-        const yPercent = (element.y / 1920) * 100;
-
-        // Render based on element type
-        if (element.type === "text") {
-          // Define font sizes based on the element size and scale factor
-          const fontSizes = {
-            sm: 48, // Small text - 48px base size
-            md: 72, // Medium text - 72px base size
-            lg: 144, // Large text - 144px base size
-          };
-
-          // Calculate the actual font size based on the element size and scale factor
-          const fontSize = fontSizes[element.size] * scaleFactor;
-
-          // Split text by newlines to create multiline text
-          const textLines = element.text.split("\n");
-
-          return (
-            <div
-              key={element.id}
-              className="absolute p-2"
-              style={{
-                left: `${xPercent}%`,
-                top: `${yPercent}%`,
-                transform: "translate(-50%, -50%)", // Center on the coordinates
-                userSelect: "none", // Prevent text selection when dragging
-              }}
-            >
-              <div className="flex flex-col items-center text-center">
-                {textLines.map((line, index) => (
-                  <p
-                    key={index}
-                    className={cn(
-                      "whitespace-nowrap select-none leading-tight",
-                      element.font &&
-                        element.font !== "default" &&
-                        `font-${element.font}`
-                    )}
-                    style={{ fontSize: `${fontSize}px` }}
-                  >
-                    {line || " "}{" "}
-                    {/* Render a space for empty lines to maintain height */}
-                  </p>
-                ))}
-              </div>
-            </div>
-          );
-        }
-
-        // Render image elements
-        if (element.type === "image") {
-          return (
-            <div
-              key={element.id}
-              className="absolute p-2"
-              style={{
-                left: `${xPercent}%`,
-                top: `${yPercent}%`,
-                transform: "translate(-50%, -50%)", // Center on the coordinates
-              }}
-            >
-              <div
-                className="overflow-hidden"
-                style={{ width: element.width * scaleFactor + "px" }}
-              >
-                <img
-                  src={element.imageUrl}
-                  alt="User added image"
-                  className="w-full object-contain select-none"
-                  draggable="false"
-                  onDragStart={(e) => e.preventDefault()}
-                />
-              </div>
-            </div>
-          );
-        }
-
-        return null;
-      })}
-    </div>
-  );
-}
+import { ElementRenderer } from "@/components/elements/ElementRenderer";
 
 // Author profile component that can be reused
 function AuthorProfile({ author, hypernote, className = "", left = false }) {
@@ -273,7 +160,10 @@ function HypernoteView({ hypernote }) {
       left={leftContent}
       center={
         <div className="md:border-black md:border-1 md:rounded-xs md:shadow-xs bg-neutral-100 aspect-9/16 overflow-clip relative">
-          <ElementRenderer elements={elements} />
+          <ElementRenderer
+            elements={elements}
+            isEditingDisabled={true}
+          />
         </div>
       }
       right={rightContent}
