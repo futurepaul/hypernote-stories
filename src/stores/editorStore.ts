@@ -50,6 +50,7 @@ interface EditorStore {
   updateTextElement: (id: string, text: string) => void
   updateTextElementFont: (id: string, font: string) => void
   updateTextElementSize: (id: string, size: 'sm' | 'md' | 'lg') => void
+  updateImageElementWidth: (id: string, width: number) => void
   clearElements: () => void
   
   // Editor operations
@@ -164,6 +165,16 @@ export const useEditorStore = create<EditorStore>((set, get) => ({
       elements: state.elements.map(element => 
         element.id === id && element.type === 'text' 
           ? { ...element, size } 
+          : element
+      )
+    }))
+  },
+  
+  updateImageElementWidth: (id: string, width: number) => {
+    set((state) => ({
+      elements: state.elements.map(element => 
+        element.id === id && element.type === 'image' 
+          ? { ...element, width } 
           : element
       )
     }))

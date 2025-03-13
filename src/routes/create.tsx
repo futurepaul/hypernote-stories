@@ -40,6 +40,93 @@ import { NDKEvent } from "@nostr-dev-kit/ndk";
 
 const DEBUG_LAYOUT = false;
 
+// ImageUrlModal Component
+function ImageUrlModal({
+  isOpen,
+  onClose,
+  onSave,
+}: {
+  isOpen: boolean;
+  onClose: () => void;
+  onSave: (imageUrl: string) => void;
+}) {
+  const [imageUrl, setImageUrl] = useState("");
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (isOpen) {
+      setImageUrl("");
+      setError(null);
+    }
+  }, [isOpen]);
+
+  const handleSave = () => {
+    if (!imageUrl.trim()) {
+      setError("Image URL is required");
+      return;
+    }
+
+    // Basic URL validation
+    try {
+      new URL(imageUrl);
+      onSave(imageUrl);
+      onClose();
+    } catch (e) {
+      setError("Please enter a valid URL");
+    }
+  };
+
+  if (!isOpen) return null;
+
+  const modalContent = (
+    <div className="fixed inset-0 bg-black/30 flex items-center justify-center" style={{ zIndex: 300 }}>
+      <div className="bg-white rounded-md p-4 shadow-lg w-full max-w-md relative" style={{ zIndex: 310 }}>
+        <div className="flex justify-between items-center mb-4">
+          <h3 className="font-bold">Add Image</h3>
+          <button onClick={onClose} className="p-1 hover:bg-gray-100 rounded">
+            <X size={18} />
+          </button>
+        </div>
+        <div className="mb-4">
+          <label className="block text-sm font-medium text-gray-700 mb-1">
+            Image URL
+          </label>
+          <input
+            type="text"
+            value={imageUrl}
+            onChange={(e) => {
+              setImageUrl(e.target.value);
+              setError(null);
+            }}
+            className="w-full border border-gray-300 rounded-md p-2"
+            autoFocus
+            placeholder="https://example.com/image.jpg"
+          />
+          {error && <p className="text-xs text-red-500 mt-1">{error}</p>}
+        </div>
+        
+        <div className="flex justify-end gap-2">
+          <button
+            onClick={onClose}
+            className="px-3 py-1 border border-gray-300 rounded-md hover:bg-gray-100"
+          >
+            Cancel
+          </button>
+          <button
+            onClick={handleSave}
+            className="px-3 py-1 bg-blue-500 text-white rounded-md hover:bg-blue-600"
+          >
+            Add Image
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+
+  // Use createPortal to render the modal at the root of the document
+  return createPortal(modalContent, document.body);
+}
+
 function DebugPanel() {
   const [isOpen, setIsOpen] = useState(true);
   const elements = useEditorStore((state) => state.elements);
@@ -48,7 +135,7 @@ function DebugPanel() {
   return (
     <div className="absolute top-0 md:static right-0 m-2 md:mt-14 bg-white/90 p-4 rounded-md shadow-md border border-gray-200">
       <div className="flex items-center justify-between mb-2">
-        <span className="font-mono text-sm">Store State</span>
+        <span className="font-mono text-sm">Hypernote Content</span>
         <div className="flex items-center gap-2">
           <button
             onClick={() => clearElements()}
@@ -249,6 +336,7 @@ interface ImageElementProps {
   isEditingDisabled: boolean;
   startDrag: (e: React.MouseEvent, elementId: string) => void;
   handleDeleteElement: (e: React.MouseEvent) => void;
+  updateWidth: (width: number) => void;
 }
 
 // TextElement Component
@@ -340,6 +428,7 @@ function ImageElementComponent({
   isEditingDisabled,
   startDrag,
   handleDeleteElement,
+  updateWidth,
 }: ImageElementProps) {
   return (
     <div
@@ -373,6 +462,17 @@ function ImageElementComponent({
       {/* Controls that appear when selected */}
       {selected && !isEditingDisabled && (
         <div className="absolute -bottom-10 left-1/2 transform -translate-x-1/2 flex gap-2 bg-white p-1 rounded-md shadow-md border border-gray-200">
+          <div className="flex items-center gap-2 px-2 border-r border-gray-200">
+            <label className="text-xs text-gray-600">Width:</label>
+            <input
+              type="number"
+              value={element.width}
+              onChange={(e) => updateWidth(Number(e.target.value))}
+              className="w-16 text-sm border border-gray-300 rounded px-1 py-0.5"
+              min={100}
+              max={1080}
+            />
+          </div>
           <button
             className="p-1 hover:bg-gray-100 rounded text-red-500"
             onClick={handleDeleteElement}
@@ -394,6 +494,7 @@ function ElementRenderer() {
   );
   const deleteElement = useEditorStore((state) => state.deleteElement);
   const updateTextElement = useEditorStore((state) => state.updateTextElement);
+  const updateImageElementWidth = useEditorStore((state) => state.updateImageElementWidth);
   const selectedElementId = useEditorStore(
     (state) => state.editorState.selectedElementId
   );
@@ -585,6 +686,7 @@ function ElementRenderer() {
               isEditingDisabled={isEditingDisabled}
               startDrag={startDrag}
               handleDeleteElement={handleDeleteElement}
+              updateWidth={(width) => updateImageElementWidth(element.id, width)}
             />
           );
         }
@@ -820,6 +922,14 @@ function RouteComponent() {
   
   // For publish modal
   const [isPublishModalOpen, setIsPublishModalOpen] = useState(false);
+  
+  // For image URL modal
+  const [isImageModalOpen, setIsImageModalOpen] = useState(false);
+
+  // Handle adding an image with the provided URL
+  const handleAddImage = (imageUrl: string) => {
+    useEditorStore.getState().addImageElement(imageUrl, 540, 960);
+  };
 
   const leftContent = !isEditingDisabled ? (
     <div className="w-full">
@@ -855,15 +965,7 @@ function RouteComponent() {
           <div
             className="w-12 h-12 border border-black rounded-xs shadow-sm flex items-center justify-center cursor-pointer hover:bg-gray-100 pointer-events-auto"
             style={{ zIndex: 30 }}
-            onClick={() =>
-              useEditorStore
-                .getState()
-                .addImageElement(
-                  "https://blob.satellite.earth/75fc2f4692566ddf090748e8d53cb1863ec93fa784ccedd533dcdd9ecbad159d",
-                  540,
-                  960
-                )
-            }
+            onClick={() => setIsImageModalOpen(true)}
           >
             <Image />
           </div>
@@ -906,6 +1008,13 @@ function RouteComponent() {
       <PublishModal
         isOpen={isPublishModalOpen}
         onClose={() => setIsPublishModalOpen(false)}
+      />
+      
+      {/* Image URL Modal */}
+      <ImageUrlModal
+        isOpen={isImageModalOpen}
+        onClose={() => setIsImageModalOpen(false)}
+        onSave={handleAddImage}
       />
     </>
   );
