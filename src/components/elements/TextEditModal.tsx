@@ -38,12 +38,14 @@ export function TextEditModal() {
     updateTextElement,
     updateTextElementFont,
     updateTextElementSize,
+    updateTextElementColor,
     elements,
   } = useEditorStore();
 
   const [text, setText] = useState(editingText);
   const [font, setFont] = useState<string>("default");
   const [size, setSize] = useState<'sm' | 'md' | 'lg'>('md');
+  const [color, setColor] = useState<'black' | 'white' | 'blue'>('black');
 
   // Find the selected element
   const selectedElement = elements.find((el) => el.id === selectedElementId);
@@ -54,6 +56,7 @@ export function TextEditModal() {
       setText(selectedTextElement.text);
       setFont(selectedTextElement.font || "default");
       setSize(selectedTextElement.size || 'md');
+      setColor(selectedTextElement.color || 'black');
     }
   }, [selectedTextElement]);
 
@@ -66,6 +69,7 @@ export function TextEditModal() {
         updateTextElementFont(selectedElementId, font);
       }
       updateTextElementSize(selectedElementId, size);
+      updateTextElementColor(selectedElementId, color);
     }
     closeEditModal();
   };
@@ -147,6 +151,47 @@ export function TextEditModal() {
               )}
             >
               Large
+            </button>
+          </div>
+        </div>
+        
+        <div className="mt-4">
+          <label className="block text-sm font-medium text-gray-700 mb-1">
+            Color
+          </label>
+          <div className="flex gap-2">
+            <button
+              onClick={() => setColor('black')}
+              className={cn(
+                "flex-1 py-2 border rounded-md",
+                color === 'black' 
+                  ? "bg-blue-100 border-blue-500" 
+                  : "border-gray-300 hover:bg-gray-50"
+              )}
+            >
+              Black
+            </button>
+            <button
+              onClick={() => setColor('white')}
+              className={cn(
+                "flex-1 py-2 border rounded-md",
+                color === 'white' 
+                  ? "bg-blue-100 border-blue-500" 
+                  : "border-gray-300 hover:bg-gray-50"
+              )}
+            >
+              White
+            </button>
+            <button
+              onClick={() => setColor('blue')}
+              className={cn(
+                "flex-1 py-2 border rounded-md",
+                color === 'blue' 
+                  ? "bg-blue-100 border-blue-500" 
+                  : "border-gray-300 hover:bg-gray-50"
+              )}
+            >
+              Blue
             </button>
           </div>
         </div>

@@ -1,10 +1,12 @@
 import { useRef, useEffect, useState } from "react";
 import { TextElement } from "./TextElement";
 import { ImageElement } from "./ImageElement";
-import type { TextElement as TextElementType, ImageElement as ImageElementType } from "@/stores/editorStore";
+import { VideoElement } from "./VideoElement";
+import { FileElement } from "./FileElement";
+import type { TextElement as TextElementType, ImageElement as ImageElementType, VideoElement as VideoElementType, FileElement as FileElementType } from "@/stores/editorStore";
 
 interface ElementRendererProps {
-  elements: (TextElementType | ImageElementType)[];
+  elements: (TextElementType | ImageElementType | VideoElementType | FileElementType)[];
   isEditingDisabled?: boolean;
   selectedElementId?: string | null;
   onElementSelect?: (elementId: string | null) => void;
@@ -102,6 +104,41 @@ export function ElementRenderer({
               startDrag={onElementDrag || (() => {})}
               handleDeleteElement={onElementDelete || (() => {})}
               updateWidth={(width) => onElementWidthUpdate?.(element.id, width)}
+            />
+          );
+        }
+
+        // Render video elements
+        if (element.type === "video") {
+          return (
+            <VideoElement
+              key={element.id}
+              element={element}
+              selected={selected}
+              xPercent={xPercent}
+              yPercent={yPercent}
+              scaleFactor={scaleFactor}
+              isEditingDisabled={isEditingDisabled}
+              startDrag={onElementDrag || (() => {})}
+              handleDeleteElement={onElementDelete || (() => {})}
+              updateWidth={(width) => onElementWidthUpdate?.(element.id, width)}
+            />
+          );
+        }
+
+        // Render file elements
+        if (element.type === "file") {
+          return (
+            <FileElement
+              key={element.id}
+              element={element}
+              selected={selected}
+              xPercent={xPercent}
+              yPercent={yPercent}
+              scaleFactor={scaleFactor}
+              isEditingDisabled={isEditingDisabled}
+              startDrag={onElementDrag || (() => {})}
+              handleDeleteElement={onElementDelete || (() => {})}
             />
           );
         }

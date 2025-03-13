@@ -6,6 +6,8 @@ import {
   EyeOff,
   Send,
   Image,
+  Video,
+  File,
 } from "lucide-react";
 import { useEditorStore } from "@/stores/editorStore";
 import { useState, useEffect } from "react";
@@ -14,8 +16,10 @@ import { ElementRenderer } from "@/components/elements/ElementRenderer";
 import { TextEditModal } from "@/components/elements/TextEditModal";
 import { PublishModal } from "@/components/modals/PublishModal";
 import { ImageUrlModal } from "@/components/modals/ImageUrlModal";
+import { VideoUrlModal } from "@/components/modals/VideoUrlModal";
+import { FileUrlModal } from "@/components/modals/FileUrlModal";
 import { DebugPanel } from "@/components/DebugPanel";
-import type { TextElement, ImageElement } from "@/stores/editorStore";
+import type { TextElement, ImageElement, VideoElement, FileElement } from "@/stores/editorStore";
 
 export const Route = createFileRoute("/create")({
   component: RouteComponent,
@@ -35,10 +39,13 @@ function RouteComponent() {
   );
   const deleteElement = useEditorStore((state) => state.deleteElement);
   const updateImageElementWidth = useEditorStore((state) => state.updateImageElementWidth);
+  const updateVideoElementWidth = useEditorStore((state) => state.updateVideoElementWidth);
   const selectedElementId = useEditorStore(
     (state) => state.editorState.selectedElementId
   );
   const openImageModal = useEditorStore((state) => state.openImageModal);
+  const openVideoModal = useEditorStore((state) => state.openVideoModal);
+  const openFileModal = useEditorStore((state) => state.openFileModal);
   const openPublishModal = useEditorStore((state) => state.openPublishModal);
   const openEditModal = useEditorStore((state) => state.openEditModal);
   const setEditingText = useEditorStore((state) => state.setEditingText);
@@ -50,9 +57,9 @@ function RouteComponent() {
   const selectedElement = elements.find((el) => el.id === selectedElementId);
   const selectedTextElement = selectedElement?.type === 'text' ? selectedElement : null;
 
-  // Filter elements to only include text and image elements
-  const filteredElements = elements.filter((el): el is TextElement | ImageElement => 
-    el.type === 'text' || el.type === 'image'
+  // Filter elements to only include text, image, video, and file elements
+  const filteredElements = elements.filter((el): el is TextElement | ImageElement | VideoElement | FileElement => 
+    el.type === 'text' || el.type === 'image' || el.type === 'video' || el.type === 'file'
   );
 
   // Get text of selected element for the modal
@@ -132,6 +139,16 @@ function RouteComponent() {
     useEditorStore.getState().addImageElement(imageUrl, 540, 960);
   };
 
+  // Handle adding a video with the provided URL
+  const handleAddVideo = (videoUrl: string) => {
+    useEditorStore.getState().addVideoElement(videoUrl, 540, 960);
+  };
+
+  // Handle adding a file with the provided URL
+  const handleAddFile = (fileUrl: string, fileName: string) => {
+    useEditorStore.getState().addFileElement(fileUrl, fileName, 540, 960);
+  };
+
   const leftContent = !isEditingDisabled ? (
     <div className="w-full">
       <DebugPanel />
@@ -149,7 +166,14 @@ function RouteComponent() {
         onElementSelect={selectElement}
         onElementDrag={startDrag}
         onElementDelete={handleDeleteElement}
-        onElementWidthUpdate={updateImageElementWidth}
+        onElementWidthUpdate={(elementId, width) => {
+          const element = elements.find(el => el.id === elementId);
+          if (element?.type === 'image') {
+            updateImageElementWidth(elementId, width);
+          } else if (element?.type === 'video') {
+            updateVideoElementWidth(elementId, width);
+          }
+        }}
         openEditModal={openEditModal}
       />
     </div>
@@ -179,9 +203,25 @@ function RouteComponent() {
           >
             <Image />
           </div>
+          <div
+            className="w-12 h-12 border border-black rounded-xs shadow-sm flex items-center justify-center cursor-pointer hover:bg-gray-100 pointer-events-auto"
+            style={{ zIndex: 30 }}
+            onClick={openVideoModal}
+          >
+            <Video />
+          </div>
+          <div
+            className="w-12 h-12 border border-black rounded-xs shadow-sm flex items-center justify-center cursor-pointer hover:bg-gray-100 pointer-events-auto"
+            style={{ zIndex: 30 }}
+            onClick={openFileModal}
+          >
+            <File />
+          </div>
         </div>
       ) : (
         <div className="flex flex-col gap-2 mt-2 opacity-0">
+          <div className="w-12 h-12"></div>
+          <div className="w-12 h-12"></div>
           <div className="w-12 h-12"></div>
           <div className="w-12 h-12"></div>
           <div className="w-12 h-12"></div>
@@ -219,6 +259,12 @@ function RouteComponent() {
       
       {/* Image URL Modal */}
       <ImageUrlModal onSave={handleAddImage} />
+
+      {/* Video URL Modal */}
+      <VideoUrlModal onSave={handleAddVideo} />
+
+      {/* File URL Modal */}
+      <FileUrlModal onSave={handleAddFile} />
 
       {/* Text Edit Modal */}
       <TextEditModal />

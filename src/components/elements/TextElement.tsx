@@ -1,7 +1,7 @@
 import { useState, useEffect } from "react";
 import { cn } from "@/lib/utils";
 import { Pencil, Trash2 } from "lucide-react";
-import { TextElement as TextElementType } from "@/stores/editorStore";
+import type { TextElement as TextElementType } from "@/stores/editorStore";
 import { TextEditModal } from "./TextEditModal";
 
 interface TextElementProps {
@@ -40,6 +40,12 @@ export function TextElement({
   // Split text by newlines to create multiline text
   const textLines = element.text.split('\n');
 
+  const textColor = {
+    black: 'text-black',
+    white: 'text-white',
+    blue: 'text-blue-600'
+  }[element.color];
+
   return (
     <div
       key={element.id}
@@ -63,7 +69,8 @@ export function TextElement({
             key={index}
             className={cn(
               "whitespace-nowrap select-none leading-tight", 
-              element.font && element.font !== "default" && `font-${element.font}`
+              element.font && element.font !== "default" && `font-${element.font}`,
+              textColor
             )}
             style={{ fontSize: `${fontSize}px` }}
           >

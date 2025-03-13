@@ -1,7 +1,7 @@
 import { create } from 'zustand'
 import { v4 as uuidv4 } from 'uuid'
 
-export type ElementType = 'text' | 'sticker' | 'image'
+export type ElementType = 'text' | 'sticker' | 'image' | 'video' | 'file'
 
 export interface BaseElement {
   id: string
@@ -15,6 +15,7 @@ export interface TextElement extends BaseElement {
   text: string
   font?: string
   size: 'sm' | 'md' | 'lg'
+  color: 'black' | 'white' | 'blue'
 }
 
 export interface StickerElement extends BaseElement {
@@ -28,7 +29,19 @@ export interface ImageElement extends BaseElement {
   width: number
 }
 
-export type Element = TextElement | StickerElement | ImageElement
+export interface VideoElement extends BaseElement {
+  type: 'video'
+  videoUrl: string
+  width: number
+}
+
+export interface FileElement extends BaseElement {
+  type: 'file'
+  fileUrl: string
+  fileName: string
+}
+
+export type Element = TextElement | StickerElement | ImageElement | VideoElement | FileElement
 
 // Editor state separate from content
 interface EditorState {
@@ -37,6 +50,8 @@ interface EditorState {
   isEditModalOpen: boolean
   isPublishModalOpen: boolean
   isImageModalOpen: boolean
+  isVideoModalOpen: boolean
+  isFileModalOpen: boolean
   editingText: string
 }
 
@@ -50,13 +65,17 @@ interface EditorStore {
   addTextElement: (text: string, x: number, y: number) => void
   addStickerElement: (stickerId: string, x: number, y: number) => void
   addImageElement: (imageUrl: string, x: number, y: number) => void
+  addVideoElement: (videoUrl: string, x: number, y: number) => void
+  addFileElement: (fileUrl: string, fileName: string, x: number, y: number) => void
   updateElementPosition: (id: string, x: number, y: number) => void
   deleteElement: (id: string) => void
   updateTextElement: (id: string, text: string) => void
   updateTextElementFont: (id: string, font: string) => void
   updateTextElementSize: (id: string, size: 'sm' | 'md' | 'lg') => void
   updateImageElementWidth: (id: string, width: number) => void
+  updateVideoElementWidth: (id: string, width: number) => void
   clearElements: () => void
+  updateTextElementColor: (id: string, color: 'black' | 'white' | 'blue') => void
   
   // Editor operations
   selectElement: (id: string | null) => void
@@ -70,6 +89,10 @@ interface EditorStore {
   closePublishModal: () => void
   openImageModal: () => void
   closeImageModal: () => void
+  openVideoModal: () => void
+  closeVideoModal: () => void
+  openFileModal: () => void
+  closeFileModal: () => void
   setEditingText: (text: string) => void
 }
 
@@ -81,6 +104,8 @@ export const useEditorStore = create<EditorStore>((set, get) => ({
     isEditModalOpen: false,
     isPublishModalOpen: false,
     isImageModalOpen: false,
+    isVideoModalOpen: false,
+    isFileModalOpen: false,
     editingText: "",
   },
   
@@ -96,6 +121,7 @@ export const useEditorStore = create<EditorStore>((set, get) => ({
           x,
           y,
           size: 'md', // Default size
+          color: 'black', // Default color
         },
       ],
     }))
@@ -133,6 +159,44 @@ export const useEditorStore = create<EditorStore>((set, get) => ({
           x,
           y,
           width: 540,
+        },
+      ],
+    }))
+    // Select the newly added element
+    get().selectElement(id);
+  },
+
+  addVideoElement: (videoUrl: string, x: number, y: number) => {
+    const id = uuidv4();
+    set((state) => ({
+      elements: [
+        ...state.elements,
+        {
+          id,
+          type: 'video',
+          videoUrl,
+          x,
+          y,
+          width: 540,
+        },
+      ],
+    }))
+    // Select the newly added element
+    get().selectElement(id);
+  },
+
+  addFileElement: (fileUrl: string, fileName: string, x: number, y: number) => {
+    const id = uuidv4();
+    set((state) => ({
+      elements: [
+        ...state.elements,
+        {
+          id,
+          type: 'file',
+          fileUrl,
+          fileName,
+          x,
+          y,
         },
       ],
     }))
@@ -198,6 +262,16 @@ export const useEditorStore = create<EditorStore>((set, get) => ({
     }))
   },
   
+  updateVideoElementWidth: (id: string, width: number) => {
+    set((state) => ({
+      elements: state.elements.map(element => 
+        element.id === id && element.type === 'video' 
+          ? { ...element, width } 
+          : element
+      )
+    }))
+  },
+  
   clearElements: () => {
     set(() => ({
       elements: [],
@@ -207,6 +281,8 @@ export const useEditorStore = create<EditorStore>((set, get) => ({
         isEditModalOpen: false,
         isPublishModalOpen: false,
         isImageModalOpen: false,
+        isVideoModalOpen: false,
+        isFileModalOpen: false,
         editingText: "",
       }
     }))
@@ -270,9 +346,43 @@ export const useEditorStore = create<EditorStore>((set, get) => ({
     }))
   },
   
+  openVideoModal: () => {
+    set((state) => ({
+      editorState: { ...state.editorState, isVideoModalOpen: true },
+    }))
+  },
+  
+  closeVideoModal: () => {
+    set((state) => ({
+      editorState: { ...state.editorState, isVideoModalOpen: false },
+    }))
+  },
+  
+  openFileModal: () => {
+    set((state) => ({
+      editorState: { ...state.editorState, isFileModalOpen: true },
+    }))
+  },
+  
+  closeFileModal: () => {
+    set((state) => ({
+      editorState: { ...state.editorState, isFileModalOpen: false },
+    }))
+  },
+  
   setEditingText: (text: string) => {
     set((state) => ({
       editorState: { ...state.editorState, editingText: text },
     }))
-  }
+  },
+
+  updateTextElementColor: (id: string, color: 'black' | 'white' | 'blue') => {
+    set((state) => ({
+      elements: state.elements.map(element => 
+        element.id === id && element.type === 'text' 
+          ? { ...element, color } 
+          : element
+      )
+    }))
+  },
 })) 
