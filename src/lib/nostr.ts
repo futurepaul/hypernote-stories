@@ -10,8 +10,9 @@ const DEFAULT_RELAYS = [
   "wss://eden.nostr.land",
   "wss://140.f7z.io",
   "wss://relay.nostr.band",
-  "ws://localhost:10547",
-];
+  // Don't use this one if node env is production
+  process.env.NODE_ENV === 'production' ? undefined : "ws://localhost:10547",
+].filter(Boolean); // Filter out undefined values
 
 class NostrService {
   private static instance: NostrService;
