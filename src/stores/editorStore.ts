@@ -27,10 +27,12 @@ export interface StickerElement extends BaseElement {
     ids?: string[]
     '#e'?: string[] // event references
     '#p'?: string[] // profile references
+    '#x'?: string[] // x tag references for blossom stickers
     // other potential filter fields
     limit?: number
   } // This matches NDKFilter structure
   accessors: string[] // Fields to extract from the event
+  associatedData?: Record<string, any> // Optional object to store additional data (like displayFilename)
 }
 
 export interface ImageElement extends BaseElement {
@@ -76,14 +78,22 @@ interface EditorStore {
   
   // Element operations
   addTextElement: (text: string, x: number, y: number) => void
-  addStickerElement: (stickerType: string, filter: {
-    kinds?: number[];
-    authors?: string[];
-    ids?: string[];
-    '#e'?: string[];
-    '#p'?: string[];
-    limit?: number;
-  }, accessors: string[], x: number, y: number) => void
+  addStickerElement: (
+    stickerType: string, 
+    filter: {
+      kinds?: number[];
+      authors?: string[];
+      ids?: string[];
+      '#e'?: string[];
+      '#p'?: string[];
+      '#x'?: string[];
+      limit?: number;
+    }, 
+    accessors: string[], 
+    x: number, 
+    y: number,
+    associatedData?: Record<string, any>
+  ) => void
   addImageElement: (imageUrl: string, x: number, y: number) => void
   addVideoElement: (videoUrl: string, x: number, y: number) => void
   addFileElement: (fileUrl: string, fileName: string, x: number, y: number) => void
@@ -156,14 +166,22 @@ export const useEditorStore = create<EditorStore>((set, get) => ({
     get().selectElement(id);
   },
 
-  addStickerElement: (stickerType: string, filter: {
-    kinds?: number[];
-    authors?: string[];
-    ids?: string[];
-    '#e'?: string[];
-    '#p'?: string[];
-    limit?: number;
-  }, accessors: string[], x: number, y: number) => {
+  addStickerElement: (
+    stickerType: string, 
+    filter: {
+      kinds?: number[];
+      authors?: string[];
+      ids?: string[];
+      '#e'?: string[];
+      '#p'?: string[];
+      '#x'?: string[];
+      limit?: number;
+    }, 
+    accessors: string[], 
+    x: number, 
+    y: number,
+    associatedData?: Record<string, any>
+  ) => {
     const id = uuidv4();
     set((state) => ({
       elements: [
@@ -176,6 +194,7 @@ export const useEditorStore = create<EditorStore>((set, get) => ({
           accessors,
           x,
           y,
+          associatedData
         },
       ],
     }))

@@ -162,8 +162,33 @@ function RouteComponent() {
   };
 
   // Handle adding a sticker with the provided parameters
-  const handleAddSticker = (stickerType: string, filter: any, accessors: string[]) => {
-    useEditorStore.getState().addStickerElement(stickerType, filter, accessors, 540, 960);
+  const handleAddSticker = (
+    stickerType: string, 
+    filter: any, 
+    accessors: string[],
+    associatedData?: Record<string, any>
+  ) => {
+    // Create a new sticker element with all data
+    const sticker: any = {
+      stickerType,
+      filter,
+      accessors
+    };
+    
+    // Add associatedData if provided
+    if (associatedData && Object.keys(associatedData).length > 0) {
+      sticker.associatedData = associatedData;
+    }
+    
+    // Add the element at the center of the canvas
+    useEditorStore.getState().addStickerElement(
+      stickerType, 
+      filter, 
+      accessors, 
+      540, 
+      960,
+      associatedData
+    );
   };
 
   // Get the sticker name based on its type

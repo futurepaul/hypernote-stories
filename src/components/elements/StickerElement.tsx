@@ -1,7 +1,22 @@
 import { useState, useEffect } from "react";
-import { AtSign, StickyNote, Loader2, Trash2 } from "lucide-react";
+import { AtSign, StickyNote, Loader2, Trash2, Download, Flower } from "lucide-react";
 import type { StickerElement as StickerElementType } from "@/stores/editorStore";
-import { fetchProfile, fetchNote, type NostrProfile, type NostrNote } from "@/lib/nostr";
+import { fetchProfile, fetchNote, type NostrProfile } from "@/lib/nostr";
+import { useNostrProfileQuery, useNostrNoteQuery, useNostrFileMetadataQuery, type NostrFileMetadata, type NostrNote } from "@/queries/nostr";
+// @ts-ignore
+import fileIcon from "@/assets/file.png";
+
+// Define a type for the blossom event data
+interface BlossomData {
+  id: string;
+  pubkey: string;
+  url?: string;
+  thumb?: string;
+  filename: string;
+  created_at: number;
+  authorName?: string;
+  authorPicture?: string;
+}
 
 // Generic sticker component that handles data fetching based on filter
 interface GenericStickerProps {
@@ -9,57 +24,103 @@ interface GenericStickerProps {
   accessors: string[];
   stickerType: string;
   scaleFactor: number;
+  associatedData?: any;
 }
 
 const GenericSticker: React.FC<GenericStickerProps> = ({
   filter,
   accessors,
   stickerType,
-  scaleFactor
+  scaleFactor,
+  associatedData
 }) => {
-  const [eventData, setEventData] = useState<any | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
+  // Only create queries for the active sticker type using conditional hooks
+  const profileQuery = stickerType === 'mention' 
+    ? useNostrProfileQuery(filter, { enabled: true })
+    : { 
+        data: undefined, 
+        isLoading: false, 
+        error: null, 
+        isRefetching: false, 
+        isFetching: false 
+      };
   
-  useEffect(() => {
-    async function fetchData() {
-      try {
-        setLoading(true);
+  const noteQuery = stickerType === 'note' 
+    ? useNostrNoteQuery(filter, { enabled: true })
+    : { 
+        data: undefined, 
+        isLoading: false, 
+        error: null, 
+        isRefetching: false, 
+        isFetching: false 
+      };
+  
+  const fileMetadataQuery = stickerType === 'blossom' 
+    ? useNostrFileMetadataQuery(filter, { enabled: true })
+    : { 
+        data: undefined, 
+        isLoading: false, 
+        error: null, 
+        isRefetching: false, 
+        isFetching: false 
+      };
+  
+  // Add debug logging
+  if (stickerType === 'note') {
+    console.log('[Debug] Note sticker:', { 
+      stickerType,
+      filter,
+      queryData: noteQuery.data,
+      isLoading: noteQuery.isLoading,
+      error: noteQuery.error,
+      isRefetching: noteQuery.isRefetching,
+      isFetching: noteQuery.isFetching
+    });
+  }
+  
+  // Add debug logging for blossom sticker
+  if (stickerType === 'blossom') {
+    console.log('[Debug] Blossom sticker:', { 
+      stickerType,
+      filter,
+      queryData: fileMetadataQuery.data,
+      isLoading: fileMetadataQuery.isLoading,
+      error: fileMetadataQuery.error,
+      isRefetching: fileMetadataQuery.isRefetching,
+      isFetching: fileMetadataQuery.isFetching
+    });
+    
+    // Add detailed debugging about the x tag
+    if (filter && filter['#x'] && filter['#x'].length > 0) {
+      console.log('[Debug] Blossom sticker x tag:', filter['#x'][0]);
+      
+      // Check if it looks like a URL
+      if (filter['#x'][0].startsWith('http')) {
+        console.log('[Debug] The x tag appears to be a URL rather than a hash');
         
-        // Determine which fetch function to use based on filter/stickerType
-        if (stickerType === 'mention' && filter.authors && filter.kinds?.includes(0)) {
-          // Fetch profile
-          const profileData = await fetchProfile(filter.authors[0]);
-          if (profileData.error) {
-            throw new Error(profileData.error);
-          }
-          setEventData(profileData);
-          
-        } else if (stickerType === 'note' && filter.ids && filter.kinds?.includes(1)) {
-          // Fetch note
-          const noteData = await fetchNote(filter.ids[0]);
-          if (noteData.error) {
-            throw new Error(noteData.error);
-          }
-          setEventData(noteData);
-          
-        } else {
-          throw new Error('Unsupported sticker type or filter');
+        // Try to extract hash from URL (common formats)
+        const hashFromUrl = filter['#x'][0].match(/([a-f0-9]{64})/i);
+        if (hashFromUrl) {
+          console.log('[Debug] Extracted hash from URL:', hashFromUrl[1]);
         }
-        
-        setLoading(false);
-      } catch (e) {
-        console.error(`Error loading ${stickerType}:`, e);
-        setError(e instanceof Error ? e.message : 'Unknown error');
-        setLoading(false);
       }
     }
-    
-    fetchData();
-  }, [stickerType, JSON.stringify(filter)]);
-
-  // Render based on sticker type
-  if (loading) {
+  }
+  
+  // Determine loading state
+  const isLoading = 
+    (stickerType === 'mention' && profileQuery.isLoading) ||
+    (stickerType === 'note' && noteQuery.isLoading) ||
+    (stickerType === 'blossom' && fileMetadataQuery.isLoading);
+  
+  // Determine error state
+  const error = 
+    (stickerType === 'mention' && profileQuery.error) ||
+    (stickerType === 'note' && noteQuery.error) ||
+    (stickerType === 'blossom' && fileMetadataQuery.error);
+  
+  // Render loading state
+  if (isLoading) {
     return (
       <div className="bg-white rounded-lg shadow-sm p-4 overflow-hidden">
         <div className="flex justify-center items-center py-4">
@@ -69,18 +130,21 @@ const GenericSticker: React.FC<GenericStickerProps> = ({
       </div>
     );
   }
-
+  
+  // Render error state
   if (error) {
     return (
       <div className="bg-white rounded-lg shadow-sm p-4 overflow-hidden">
-        <div className="text-red-500 text-sm py-2 px-1">{error}</div>
+        <div className="text-red-500 text-sm py-2 px-1">
+          {error instanceof Error ? error.message : "Error loading data"}
+        </div>
       </div>
     );
   }
 
   // Render a Mention sticker
-  if (stickerType === 'mention' && eventData) {
-    const profile = eventData as NostrProfile;
+  if (stickerType === 'mention' && profileQuery.data) {
+    const profile = profileQuery.data;
     return (
       <div className="bg-white rounded-lg shadow-sm overflow-hidden">
         <div className="rounded-full bg-blue-100 px-3 py-1.5 inline-flex items-center gap-1.5 m-2">
@@ -125,8 +189,9 @@ const GenericSticker: React.FC<GenericStickerProps> = ({
   }
 
   // Render a Note sticker
-  if (stickerType === 'note' && eventData) {
-    const note = eventData as NostrNote;
+  if (stickerType === 'note' && noteQuery.data) {
+    console.log('[Debug] Rendering note sticker with data:', noteQuery.data);
+    const note = noteQuery.data;
     return (
       <div className="bg-white rounded-lg shadow-sm overflow-hidden">
         <div className="rounded-lg bg-yellow-100 px-3 py-1.5 inline-flex items-center gap-1.5 m-2">
@@ -172,7 +237,116 @@ const GenericSticker: React.FC<GenericStickerProps> = ({
     );
   }
 
+  // Render a Blossom sticker (file)
+  if (stickerType === 'blossom' && fileMetadataQuery.data) {
+    const file = fileMetadataQuery.data;
+    
+    return (
+      <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-3 overflow-hidden">
+        <div className="rounded-full bg-green-100 px-3 py-1.5 inline-flex items-center gap-1.5 mb-2">
+          <Flower className="w-4 h-4 text-green-600" />
+          <span className="text-sm font-semibold text-green-700">
+            {file.id ? file.id.substring(0, 8) + '...' : 'File'}
+          </span>
+        </div>
+        
+        <div className="flex items-center gap-3 mb-2">
+          {file.thumb ? (
+            <img 
+              src={file.thumb} 
+              alt={file.filename || "File"} 
+              className="w-8 h-8 object-cover rounded"
+              onError={(e) => {
+                // Fall back to file icon on error
+                (e.target as HTMLImageElement).src = fileIcon;
+              }}
+            />
+          ) : (
+            <img src={fileIcon} alt="File" className="w-8 h-8" />
+          )}
+          <div className="flex-1 min-w-0">
+            <p className="text-sm font-medium text-gray-900 truncate">
+              {file.filename || "unknown.file"}
+            </p>
+            {file.created_at > 0 && (
+              <p className="text-xs text-gray-500 mt-1">
+                {new Date(file.created_at * 1000).toLocaleString()}
+              </p>
+            )}
+          </div>
+        </div>
+        
+        <div className="flex justify-end">
+          <button
+            onClick={() => file.url && window.open(file.url, '_blank')}
+            className="flex items-center gap-1 text-sm text-blue-600 hover:text-blue-700"
+            disabled={!file.url}
+          >
+            <Download size={16} />
+            Download
+          </button>
+        </div>
+      </div>
+    );
+  }
+
   // Fallback if no matching renderer
+  console.log('[Debug] Fallback case reached. Sticker type:', stickerType, 'Data available:', {
+    profileData: profileQuery.data !== undefined,
+    noteData: noteQuery.data !== undefined,
+    fileData: fileMetadataQuery.data !== undefined
+  });
+  
+  // Create a more specific fallback based on sticker type
+  if (stickerType === 'mention' && !profileQuery.isLoading && !profileQuery.error) {
+    return (
+      <div className="bg-white rounded-lg shadow-sm p-4 overflow-hidden">
+        <div className="rounded-full bg-blue-100 px-3 py-1.5 inline-flex items-center gap-1.5 mb-2">
+          <AtSign className="w-4 h-4 text-blue-500" />
+          <span className="text-sm font-semibold text-blue-700">
+            Profile Not Found
+          </span>
+        </div>
+        <div className="text-gray-500 text-sm py-1">
+          The requested Nostr profile could not be found.
+        </div>
+      </div>
+    );
+  }
+  
+  if (stickerType === 'note' && !noteQuery.isLoading && !noteQuery.error) {
+    return (
+      <div className="bg-white rounded-lg shadow-sm p-4 overflow-hidden">
+        <div className="rounded-lg bg-yellow-100 px-3 py-1.5 inline-flex items-center gap-1.5 mb-2">
+          <StickyNote className="w-4 h-4 text-yellow-700" />
+          <span className="text-sm font-semibold text-yellow-800">
+            Note Not Found
+          </span>
+        </div>
+        <div className="text-gray-500 text-sm py-1">
+          The requested Nostr note could not be found.
+        </div>
+      </div>
+    );
+  }
+  
+  if (stickerType === 'blossom' && !fileMetadataQuery.isLoading && !fileMetadataQuery.error) {
+    return (
+      <div className="bg-white rounded-lg shadow-sm p-4 overflow-hidden">
+        <div className="rounded-full bg-green-100 px-3 py-1.5 inline-flex items-center gap-1.5 mb-2">
+          <Flower className="w-4 h-4 text-green-600" />
+          <span className="text-sm font-semibold text-green-700">
+            File Not Found
+          </span>
+        </div>
+        <div className="text-gray-500 text-sm py-1">
+          The requested Nostr file metadata could not be found.
+        </div>
+      </div>
+    );
+  }
+  
+  // Generic fallback for truly unsupported types
   return (
     <div className="bg-white rounded-lg shadow-sm p-4 overflow-hidden">
       <div className="text-gray-500 text-sm py-2">Unsupported sticker type</div>
@@ -207,7 +381,14 @@ export function StickerElement({
   const finalScaleFactor = Math.max(adjustedScaleFactor, 0.7);
 
   // Determine the base width based on sticker type
-  const baseWidth = element.stickerType === 'mention' ? 260 : 320;
+  let baseWidth = 320; // default for most stickers
+  
+  if (element.stickerType === 'mention') {
+    baseWidth = 260;
+  } else if (element.stickerType === 'blossom') {
+    baseWidth = 280; // File-like stickers can be a bit narrower
+  }
+  
   const scaledWidth = baseWidth * finalScaleFactor;
 
   return (
@@ -237,6 +418,7 @@ export function StickerElement({
             accessors={element.accessors} 
             stickerType={element.stickerType} 
             scaleFactor={1} 
+            associatedData={element.associatedData}
           />
         </div>
       </div>

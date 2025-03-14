@@ -1,5 +1,5 @@
 import { createPortal } from "react-dom";
-import { X, AtSign, StickyNote, Bot, Zap } from "lucide-react";
+import { X, AtSign, StickyNote, Bot, Zap, Flower } from "lucide-react";
 import { useEditorStore } from "@/stores/editorStore";
 import { cn } from "@/lib/utils";
 
@@ -22,6 +22,11 @@ const stickers: Sticker[] = [
     icon: <StickyNote className="w-6 h-6" />,
   },
   {
+    id: "blossom",
+    name: "Blossom",
+    icon: <Flower className="w-6 h-6" />,
+  },
+  {
     id: "dvmcp",
     name: "DVMCP",
     icon: <Bot className="w-6 h-6" />,
@@ -35,11 +40,20 @@ const stickers: Sticker[] = [
   },
 ];
 
+// Define a type for the sticker parameter
+export interface StickerParam {
+  key: string;
+  label: string;
+  placeholder: string;
+  helpText: string;
+  required?: boolean;
+}
+
 // This defines the sticker filter templates and accessors
 export const stickerDefinitions = {
   mention: {
     name: "Mention",
-    filterTemplate: (pubkey: string) => ({ 
+    filterTemplate: (pubkey: string, _unused?: string) => ({ 
       kinds: [0], 
       authors: [pubkey], 
       limit: 1 
@@ -51,12 +65,13 @@ export const stickerDefinitions = {
         label: "Nostr Public Key",
         placeholder: "Hex pubkey or npub...",
         helpText: "Enter a valid npub1... or hex public key",
+        required: true
       }
-    ]
+    ] as StickerParam[]
   },
   note: {
     name: "Note",
-    filterTemplate: (id: string) => ({ 
+    filterTemplate: (id: string, _unused?: string) => ({ 
       kinds: [1], 
       ids: [id], 
       limit: 1 
@@ -68,8 +83,34 @@ export const stickerDefinitions = {
         label: "Note ID",
         placeholder: "Hex ID or note1/nevent1...",
         helpText: "Enter a note1/nevent1 ID or 64-character hex event ID",
+        required: true
       }
-    ]
+    ] as StickerParam[]
+  },
+  blossom: {
+    name: "Blossom",
+    filterTemplate: (hash: string, filename: string) => ({ 
+      kinds: [1063], 
+      "#x": [hash],
+      limit: 1 
+    }),
+    accessors: ["url", "thumb", "filename", "pubkey", "created_at"],
+    params: [
+      {
+        key: "url",
+        label: "File URL",
+        placeholder: "e.g. https://cdn.satellite.earth/e5f7aecd459ed76f5f4aca2ab218ca0336f10f99921385a96835ed8006a6411e.png",
+        helpText: "Enter the URL of the file (must contain a SHA-256 hash)",
+        required: true
+      },
+      {
+        key: "filename",
+        label: "Custom Filename (Optional)",
+        placeholder: "e.g. my_image.png",
+        helpText: "Custom filename for display purposes",
+        required: false
+      }
+    ] as StickerParam[]
   }
 };
 

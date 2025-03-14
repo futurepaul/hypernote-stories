@@ -22,3 +22,8 @@ export const hypernoteKeys = {
     all: ['hypernotes'] as const,
     details: (id: string) => [...hypernoteKeys.all, id] as const,
 } as const
+
+export const nostrKeys = {
+    all: ['nostr'] as const,
+    filter: (filter: Record<string, any>) => [...nostrKeys.all, filter] as const,
+}

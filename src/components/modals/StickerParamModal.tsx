@@ -3,14 +3,15 @@ import { createPortal } from "react-dom";
 import { X } from "lucide-react";
 import { useEditorStore } from "@/stores/editorStore";
 import { stickerDefinitions } from "./StickerModal";
-import { decodeNostrId } from "@/lib/nostr";
+import type { StickerParam } from "./StickerModal";
+import { decodeNostrId, publishFileMetadata, extractHashFromUrl } from "@/lib/nostr";
 
 interface StickerParamModalProps {
   stickerId: string;
   stickerName: string;
   isOpen: boolean;
   onClose: () => void;
-  onAdd: (stickerType: string, filter: any, accessors: string[]) => void;
+  onAdd: (stickerType: string, filter: any, accessors: string[], associatedData?: Record<string, any>) => void;
 }
 
 export function StickerParamModal({
@@ -49,17 +50,23 @@ export function StickerParamModal({
     setError(null); // Clear error on change
   };
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     
     try {
       const processedParams: { [key: string]: string } = {};
       
       // Process each parameter based on its type (decode NIPs as needed)
-      definition.params.forEach((param) => {
+      for (const param of definition.params) {
         const value = params[param.key];
         
-        if (!value) {
+        // Skip empty optional parameters
+        if (!value && param.required === false) {
+          continue;
+        }
+        
+        // Error for missing required parameters
+        if (!value && param.required !== false) {
           throw new Error(`${param.label} is required`);
         }
         
@@ -80,14 +87,71 @@ export function StickerParamModal({
         }
         
         processedParams[param.key] = processedValue;
-      });
+      }
       
-      // Build the filter using the filterTemplate function
-      const filterParams = Object.values(processedParams)[0]; // Most stickers just have one parameter
-      const filter = definition.filterTemplate(filterParams);
+      // Special handling for blossom stickers - publish file metadata
+      if (stickerId === 'blossom') {
+        const url = processedParams.url;
+        const hash = extractHashFromUrl(url);
+        
+        if (!hash) {
+          throw new Error('Could not find a valid SHA-256 hash in the URL');
+        }
+        
+        // Publish the file metadata event
+        setError('Publishing file metadata...');
+
+        const eventId = await publishFileMetadata(
+          url, 
+          hash,
+          { 
+            filename: processedParams.filename,
+            // We could extract MIME type from file extension if needed
+          }
+        );
+        
+        if (!eventId) {
+          throw new Error('Failed to publish file metadata. Please ensure you have a Nostr extension enabled.');
+        }
+        
+        // Create the filter using the hash
+        const filter = definition.filterTemplate(hash, "");
+        
+        // Set up the associated data
+        const associatedData: Record<string, any> = {};
+        if (processedParams.filename) {
+          associatedData.displayFilename = processedParams.filename;
+        }
+        
+        // Call onAdd with the new sticker parameters
+        onAdd(stickerId, filter, definition.accessors, associatedData);
+        onClose();
+        return;
+      }
+      
+      // Handle other sticker types (mention, note)
+      let filter;
+      
+      if (stickerId === 'mention') {
+        filter = definition.filterTemplate(processedParams.pubkey, "");
+      } else if (stickerId === 'note') {
+        filter = definition.filterTemplate(processedParams.id, "");
+      } else {
+        // Generic fallback if we have a new sticker type
+        const firstParam = Object.values(processedParams)[0];
+        filter = definition.filterTemplate(firstParam, "");
+      }
+      
+      // Create associatedData object for non-filter properties
+      const associatedData: Record<string, any> = {};
+      
+      // Add display parameters that aren't part of the Nostr filter
+      if (stickerId === 'blossom' && processedParams.filename) {
+        associatedData.displayFilename = processedParams.filename;
+      }
       
       // Call onAdd with the new sticker parameters
-      onAdd(stickerId, filter, definition.accessors);
+      onAdd(stickerId, filter, definition.accessors, associatedData);
       
       onClose();
     } catch (e) {

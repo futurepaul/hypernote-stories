@@ -458,4 +458,93 @@ export async function fetchNote(id: string): Promise<NostrNote> {
       error: error instanceof Error ? error.message : 'Failed to fetch note'
     };
   }
+}
+
+/**
+ * Publish a file metadata event (kind 1063) according to NIP-94
+ * @param url URL of the file
+ * @param hash SHA-256 hash of the file (x tag)
+ * @param options Additional optional parameters
+ * @returns The event ID if successful, null otherwise
+ */
+export async function publishFileMetadata(
+  url: string,
+  hash: string,
+  options: {
+    originalHash?: string;  // ox tag, defaults to hash if not provided
+    filename?: string;      // alt tag for filename
+    mimeType?: string;      // m tag for MIME type
+    description?: string;   // content field
+  } = {}
+): Promise<string | null> {
+  try {
+    const service = nostrService;
+    
+    // Make sure we're connected to relays
+    if (!service.isConnected) {
+      await service.connect();
+    }
+    
+    // Get NDK instance safely
+    const ndk = await service.getNdk();
+    
+    // Create a new event
+    const event = new NDKEvent(ndk);
+    event.kind = 1063;
+    event.content = options.description || '';  // Can be empty
+    
+    // Add required tags
+    event.tags = [
+      ['url', url],
+      ['x', hash],
+    ];
+    
+    // Add optional original hash tag if different from hash
+    if (options.originalHash && options.originalHash !== hash) {
+      event.tags.push(['ox', options.originalHash]);
+    }
+    
+    // Add optional alt tag for filename
+    if (options.filename) {
+      event.tags.push(['alt', options.filename]);
+    }
+    
+    // Add optional MIME type
+    if (options.mimeType) {
+      event.tags.push(['m', options.mimeType]);
+    }
+    
+    // Sign and publish the event
+    const success = await service.publishEvent(event);
+    
+    if (success) {
+      console.log('[Nostr] Published file metadata event:', event.id);
+      return event.id;
+    }
+    
+    return null;
+  } catch (error) {
+    console.error('Error publishing file metadata:', error);
+    return null;
+  }
+}
+
+/**
+ * Extract a SHA-256 hash from a URL or string
+ * @param input URL or string that might contain a SHA-256 hash
+ * @returns The extracted hash or null if not found
+ */
+export function extractHashFromUrl(input: string): string | null {
+  // Common patterns for SHA-256 hashes in URLs
+  // 1. Direct hash in path segment (e.g., /e5f7aecd459ed76f5f4aca2ab218ca0336f10f99921385a96835ed8006a6411e)
+  // 2. Hash as filename (e.g., e5f7aecd459ed76f5f4aca2ab218ca0336f10f99921385a96835ed8006a6411e.png)
+  // 3. Hash as query parameter (e.g., ?hash=e5f7aecd459ed76f5f4aca2ab218ca0336f10f99921385a96835ed8006a6411e)
+  
+  // Look for a SHA-256 hash pattern (64 hex characters)
+  const hashMatch = input.match(/([a-f0-9]{64})/i);
+  if (hashMatch) {
+    return hashMatch[1].toLowerCase();
+  }
+  
+  return null;
 } 
