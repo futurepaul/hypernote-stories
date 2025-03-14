@@ -18,8 +18,16 @@ import { PublishModal } from "@/components/modals/PublishModal";
 import { ImageUrlModal } from "@/components/modals/ImageUrlModal";
 import { VideoUrlModal } from "@/components/modals/VideoUrlModal";
 import { FileUrlModal } from "@/components/modals/FileUrlModal";
+import { StickerModal } from "@/components/modals/StickerModal";
+import { StickerParamModal } from "@/components/modals/StickerParamModal";
 import { DebugPanel } from "@/components/DebugPanel";
-import type { TextElement, ImageElement, VideoElement, FileElement } from "@/stores/editorStore";
+import type { 
+  TextElement, 
+  ImageElement, 
+  VideoElement, 
+  FileElement, 
+  StickerElement 
+} from "@/stores/editorStore";
 
 export const Route = createFileRoute("/create")({
   component: RouteComponent,
@@ -48,7 +56,11 @@ function RouteComponent() {
   const openFileModal = useEditorStore((state) => state.openFileModal);
   const openPublishModal = useEditorStore((state) => state.openPublishModal);
   const openEditModal = useEditorStore((state) => state.openEditModal);
+  const openStickerModal = useEditorStore((state) => state.openStickerModal);
   const setEditingText = useEditorStore((state) => state.setEditingText);
+  const isStickerParamModalOpen = useEditorStore((state) => state.editorState.isStickerParamModalOpen);
+  const selectedStickerType = useEditorStore((state) => state.editorState.selectedStickerType);
+  const closeStickerParamModal = useEditorStore((state) => state.closeStickerParamModal);
   
   const [dragging, setDragging] = useState(false);
   const [draggedElementId, setDraggedElementId] = useState<string | null>(null);
@@ -57,9 +69,9 @@ function RouteComponent() {
   const selectedElement = elements.find((el) => el.id === selectedElementId);
   const selectedTextElement = selectedElement?.type === 'text' ? selectedElement : null;
 
-  // Filter elements to only include text, image, video, and file elements
-  const filteredElements = elements.filter((el): el is TextElement | ImageElement | VideoElement | FileElement => 
-    el.type === 'text' || el.type === 'image' || el.type === 'video' || el.type === 'file'
+  // Filter elements to include text, image, video, file, and sticker elements
+  const filteredElements = elements.filter((el): el is TextElement | ImageElement | VideoElement | FileElement | StickerElement => 
+    el.type === 'text' || el.type === 'image' || el.type === 'video' || el.type === 'file' || el.type === 'sticker'
   );
 
   // Get text of selected element for the modal
@@ -149,6 +161,20 @@ function RouteComponent() {
     useEditorStore.getState().addFileElement(fileUrl, fileName, 540, 960);
   };
 
+  // Handle adding a sticker with the provided parameters
+  const handleAddSticker = (params: { [key: string]: string }) => {
+    if (selectedStickerType) {
+      useEditorStore.getState().addStickerElement(selectedStickerType, params, 540, 960);
+    }
+  };
+
+  // Get the sticker name based on its ID
+  const getStickerName = (stickerId: string | null) => {
+    if (stickerId === 'mention') return 'Mention';
+    if (stickerId === 'note') return 'Note';
+    return 'Sticker';
+  };
+
   const leftContent = !isEditingDisabled ? (
     <div className="w-full">
       <DebugPanel />
@@ -193,7 +219,11 @@ function RouteComponent() {
           >
             <Type />
           </div>
-          <div className="w-12 h-12 border border-black rounded-xs shadow-sm flex items-center justify-center pointer-events-auto" style={{ zIndex: 30 }}>
+          <div
+            className="w-12 h-12 border border-black rounded-xs shadow-sm flex items-center justify-center cursor-pointer hover:bg-gray-100 pointer-events-auto"
+            style={{ zIndex: 30 }}
+            onClick={openStickerModal}
+          >
             <Sticker />
           </div>
           <div
@@ -268,6 +298,20 @@ function RouteComponent() {
 
       {/* Text Edit Modal */}
       <TextEditModal />
+
+      {/* Sticker Modal */}
+      <StickerModal />
+
+      {/* Sticker Parameter Modal */}
+      {selectedStickerType && (
+        <StickerParamModal
+          stickerId={selectedStickerType}
+          stickerName={getStickerName(selectedStickerType)}
+          isOpen={isStickerParamModalOpen}
+          onClose={closeStickerParamModal}
+          onAdd={handleAddSticker}
+        />
+      )}
     </>
   );
 }

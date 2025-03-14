@@ -21,6 +21,9 @@ export interface TextElement extends BaseElement {
 export interface StickerElement extends BaseElement {
   type: 'sticker'
   stickerId: string
+  params: {
+    [key: string]: string // Generic key-value store for parameters
+  }
 }
 
 export interface ImageElement extends BaseElement {
@@ -52,6 +55,9 @@ interface EditorState {
   isImageModalOpen: boolean
   isVideoModalOpen: boolean
   isFileModalOpen: boolean
+  isStickerModalOpen: boolean
+  isStickerParamModalOpen: boolean
+  selectedStickerType: string | null
   editingText: string
 }
 
@@ -63,7 +69,7 @@ interface EditorStore {
   
   // Element operations
   addTextElement: (text: string, x: number, y: number) => void
-  addStickerElement: (stickerId: string, x: number, y: number) => void
+  addStickerElement: (stickerId: string, params: {[key: string]: string}, x: number, y: number) => void
   addImageElement: (imageUrl: string, x: number, y: number) => void
   addVideoElement: (videoUrl: string, x: number, y: number) => void
   addFileElement: (fileUrl: string, fileName: string, x: number, y: number) => void
@@ -93,6 +99,10 @@ interface EditorStore {
   closeVideoModal: () => void
   openFileModal: () => void
   closeFileModal: () => void
+  openStickerModal: () => void
+  closeStickerModal: () => void
+  openStickerParamModal: (stickerId: string) => void
+  closeStickerParamModal: () => void
   setEditingText: (text: string) => void
 }
 
@@ -106,6 +116,9 @@ export const useEditorStore = create<EditorStore>((set, get) => ({
     isImageModalOpen: false,
     isVideoModalOpen: false,
     isFileModalOpen: false,
+    isStickerModalOpen: false,
+    isStickerParamModalOpen: false,
+    selectedStickerType: null,
     editingText: "",
   },
   
@@ -129,7 +142,7 @@ export const useEditorStore = create<EditorStore>((set, get) => ({
     get().selectElement(id);
   },
 
-  addStickerElement: (stickerId: string, x: number, y: number) => {
+  addStickerElement: (stickerId: string, params: {[key: string]: string}, x: number, y: number) => {
     const id = uuidv4();
     set((state) => ({
       elements: [
@@ -138,6 +151,7 @@ export const useEditorStore = create<EditorStore>((set, get) => ({
           id,
           type: 'sticker',
           stickerId,
+          params,
           x,
           y,
         },
@@ -283,6 +297,9 @@ export const useEditorStore = create<EditorStore>((set, get) => ({
         isImageModalOpen: false,
         isVideoModalOpen: false,
         isFileModalOpen: false,
+        isStickerModalOpen: false,
+        isStickerParamModalOpen: false,
+        selectedStickerType: null,
         editingText: "",
       }
     }))
@@ -367,6 +384,39 @@ export const useEditorStore = create<EditorStore>((set, get) => ({
   closeFileModal: () => {
     set((state) => ({
       editorState: { ...state.editorState, isFileModalOpen: false },
+    }))
+  },
+  
+  openStickerModal: () => {
+    set((state) => ({
+      editorState: { ...state.editorState, isStickerModalOpen: true },
+    }))
+  },
+  
+  closeStickerModal: () => {
+    set((state) => ({
+      editorState: { ...state.editorState, isStickerModalOpen: false },
+    }))
+  },
+  
+  openStickerParamModal: (stickerId: string) => {
+    set((state) => ({
+      editorState: { 
+        ...state.editorState, 
+        isStickerParamModalOpen: true,
+        selectedStickerType: stickerId,
+        isStickerModalOpen: false, // Close sticker modal when param modal opens
+      },
+    }))
+  },
+  
+  closeStickerParamModal: () => {
+    set((state) => ({
+      editorState: { 
+        ...state.editorState, 
+        isStickerParamModalOpen: false,
+        selectedStickerType: null,
+      },
     }))
   },
   

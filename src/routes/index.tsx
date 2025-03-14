@@ -4,9 +4,10 @@ import { useState, useEffect } from "react";
 import { SingleRow } from "@/components/GridLayout";
 import { hypernotesQueryOptions } from "@/queries/hypernotes";
 import { authorQueryOptions } from "@/queries/authors";
-import { Heart, Share2 } from "lucide-react";
+import { Heart, Share2, Loader2 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { ElementRenderer } from "@/components/elements/ElementRenderer";
+import { nostrService } from "@/lib/nostr";
 
 // Author profile component that can be reused
 function AuthorProfile({ author, hypernote, className = "", left = false }) {
@@ -173,16 +174,128 @@ function HypernoteView({ hypernote }) {
 }
 
 export const Route = createFileRoute("/")({
-  loader: ({ context }) => {
+  loader: async ({ context }) => {
     const { queryClient } = context as { queryClient: any };
+    
+    // Ensure Nostr connection is established before loading hypernotes
+    try {
+      console.log("Ensuring Nostr connection is established in route loader");
+      
+      // This will now properly handle initialization and use the retry mechanism
+      await nostrService.connect();
+      console.log("Nostr connection established in route loader");
+    } catch (error) {
+      console.error("Failed to connect to Nostr in route loader:", error);
+      // Continue anyway and let the component handle the connection state
+    }
+    
     return queryClient.ensureQueryData(hypernotesQueryOptions);
   },
   component: Index,
 });
 
 function Index() {
-  const hypernotesQuery = useSuspenseQuery(hypernotesQueryOptions);
-  const hypernotes = hypernotesQuery.data || [];
+  const [isConnecting, setIsConnecting] = useState(false);
+  const [connectionError, setConnectionError] = useState("");
+  const [isRetrying, setIsRetrying] = useState(false);
+  
+  // Handle Nostr connection
+  useEffect(() => {
+    const ensureNostrConnection = async () => {
+      if (nostrService.isConnected) {
+        // Already connected, nothing to do
+        return;
+      }
+      
+      // Only try to connect if not already connecting
+      if (!nostrService.isConnecting && !isConnecting) {
+        setIsConnecting(true);
+        setConnectionError("");
+        
+        try {
+          console.log("Connecting to Nostr relays from component...");
+          // This will now handle retries internally
+          await nostrService.connect();
+          console.log("Successfully connected to Nostr relays from component");
+        } catch (error) {
+          console.error("Error connecting to Nostr:", error);
+          setConnectionError(error instanceof Error ? error.message : "Failed to connect to Nostr relays");
+        } finally {
+          setIsConnecting(false);
+        }
+      }
+    };
+    
+    ensureNostrConnection();
+  }, [isRetrying]);
+  
+  // Handle manual retry
+  const handleRetry = () => {
+    setIsRetrying(!isRetrying);
+  };
+
+  // Use suspense query to fetch hypernotes
+  let hypernotes = [];
+  let queryError = null;
+  
+  try {
+    const hypernotesQuery = useSuspenseQuery(hypernotesQueryOptions);
+    hypernotes = hypernotesQuery.data || [];
+  } catch (error) {
+    console.error("Error fetching hypernotes:", error);
+    queryError = error;
+  }
+
+  // Show loading state if connecting to Nostr
+  if (isConnecting || nostrService.isConnecting) {
+    return (
+      <div className="h-screen w-full flex flex-col items-center justify-center p-4">
+        <div className="flex items-center gap-2 mb-4">
+          <Loader2 className="h-6 w-6 animate-spin" />
+          <h2 className="text-2xl font-bold">Connecting to Nostr...</h2>
+        </div>
+        <p className="text-gray-600 text-center">
+          Establishing connection to Nostr relays
+        </p>
+      </div>
+    );
+  }
+
+  // Show connection error if there was a problem
+  if (connectionError) {
+    return (
+      <div className="h-screen w-full flex flex-col items-center justify-center p-4">
+        <h2 className="text-2xl font-bold mb-4 text-red-500">Connection Error</h2>
+        <p className="text-gray-600 text-center mb-6">
+          {connectionError}
+        </p>
+        <button
+          onClick={handleRetry}
+          className="px-4 py-2 bg-blue-500 text-white rounded-md hover:bg-blue-600"
+        >
+          Retry Connection
+        </button>
+      </div>
+    );
+  }
+
+  // Show query error if there was a problem fetching hypernotes
+  if (queryError) {
+    return (
+      <div className="h-screen w-full flex flex-col items-center justify-center p-4">
+        <h2 className="text-2xl font-bold mb-4 text-red-500">Error Loading Hypernotes</h2>
+        <p className="text-gray-600 text-center mb-6">
+          There was a problem loading hypernotes. Please try again.
+        </p>
+        <button
+          onClick={handleRetry}
+          className="px-4 py-2 bg-blue-500 text-white rounded-md hover:bg-blue-600"
+        >
+          Retry
+        </button>
+      </div>
+    );
+  }
 
   // Show a message if there are no hypernotes
   if (hypernotes.length === 0) {
@@ -190,15 +303,25 @@ function Index() {
       <div className="h-screen w-full flex flex-col items-center justify-center p-4">
         <h2 className="text-2xl font-bold mb-4">No Hypernotes Found</h2>
         <p className="text-gray-600 text-center mb-6">
-          There are no hypernotes available right now. Create your first
-          hypernote!
+          {nostrService.isConnected 
+            ? "There are no hypernotes available right now. Create your first hypernote!"
+            : "Not connected to Nostr relays. Please check your connection."}
         </p>
-        <a
-          href="/create"
-          className="px-4 py-2 bg-blue-500 text-white rounded-md hover:bg-blue-600"
-        >
-          Create Hypernote
-        </a>
+        {nostrService.isConnected ? (
+          <a
+            href="/create"
+            className="px-4 py-2 bg-blue-500 text-white rounded-md hover:bg-blue-600"
+          >
+            Create Hypernote
+          </a>
+        ) : (
+          <button
+            onClick={handleRetry}
+            className="px-4 py-2 bg-blue-500 text-white rounded-md hover:bg-blue-600"
+          >
+            Retry Connection
+          </button>
+        )}
       </div>
     );
   }
@@ -206,7 +329,7 @@ function Index() {
   return (
     <div className="h-screen w-full">
       {hypernotes.map((hypernote) => (
-        <HypernoteView hypernote={hypernote} />
+        <HypernoteView key={hypernote.id} hypernote={hypernote} />
       ))}
     </div>
   );

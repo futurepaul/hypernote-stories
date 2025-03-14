@@ -3,10 +3,17 @@ import { TextElement } from "./TextElement";
 import { ImageElement } from "./ImageElement";
 import { VideoElement } from "./VideoElement";
 import { FileElement } from "./FileElement";
-import type { TextElement as TextElementType, ImageElement as ImageElementType, VideoElement as VideoElementType, FileElement as FileElementType } from "@/stores/editorStore";
+import { StickerElement } from "./StickerElement";
+import type { 
+  TextElement as TextElementType, 
+  ImageElement as ImageElementType, 
+  VideoElement as VideoElementType, 
+  FileElement as FileElementType,
+  StickerElement as StickerElementType
+} from "@/stores/editorStore";
 
 interface ElementRendererProps {
-  elements: (TextElementType | ImageElementType | VideoElementType | FileElementType)[];
+  elements: (TextElementType | ImageElementType | VideoElementType | FileElementType | StickerElementType)[];
   isEditingDisabled?: boolean;
   selectedElementId?: string | null;
   onElementSelect?: (elementId: string | null) => void;
@@ -85,6 +92,23 @@ export function ElementRenderer({
               isEditingDisabled={isEditingDisabled}
               startDrag={onElementDrag || (() => {})}
               openEditModal={openEditModal || (() => {})}
+              handleDeleteElement={onElementDelete || (() => {})}
+            />
+          );
+        }
+
+        // Render sticker elements
+        if (element.type === "sticker") {
+          return (
+            <StickerElement
+              key={element.id}
+              element={element}
+              selected={selected}
+              xPercent={xPercent}
+              yPercent={yPercent}
+              scaleFactor={scaleFactor}
+              isEditingDisabled={isEditingDisabled}
+              startDrag={onElementDrag || (() => {})}
               handleDeleteElement={onElementDelete || (() => {})}
             />
           );
