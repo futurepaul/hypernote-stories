@@ -33,6 +33,17 @@ export interface StickerElement extends BaseElement {
   } // This matches NDKFilter structure
   accessors: string[] // Fields to extract from the event
   associatedData?: Record<string, any> // Optional object to store additional data (like displayFilename)
+  methods?: {
+    [key: string]: {
+      description?: string;
+      eventTemplate: {
+        kind: number;
+        tags?: string[][];
+        content?: string;
+        [key: string]: any;
+      };
+    }
+  } // Methods that contain event templates
 }
 
 export interface ImageElement extends BaseElement {
@@ -92,7 +103,18 @@ interface EditorStore {
     accessors: string[], 
     x: number, 
     y: number,
-    associatedData?: Record<string, any>
+    associatedData?: Record<string, any>,
+    methods?: { 
+      [key: string]: {
+        description?: string;
+        eventTemplate: {
+          kind: number;
+          tags?: string[][];
+          content?: string;
+          [key: string]: any;
+        };
+      } 
+    }
   ) => void
   addImageElement: (imageUrl: string, x: number, y: number) => void
   addVideoElement: (videoUrl: string, x: number, y: number) => void
@@ -180,7 +202,18 @@ export const useEditorStore = create<EditorStore>((set, get) => ({
     accessors: string[], 
     x: number, 
     y: number,
-    associatedData?: Record<string, any>
+    associatedData?: Record<string, any>,
+    methods?: { 
+      [key: string]: {
+        description?: string;
+        eventTemplate: {
+          kind: number;
+          tags?: string[][];
+          content?: string;
+          [key: string]: any;
+        };
+      } 
+    }
   ) => {
     const id = uuidv4();
     set((state) => ({
@@ -194,7 +227,8 @@ export const useEditorStore = create<EditorStore>((set, get) => ({
           accessors,
           x,
           y,
-          associatedData
+          associatedData,
+          methods
         },
       ],
     }))

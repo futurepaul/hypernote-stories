@@ -1,10 +1,15 @@
-import { AtSign, StickyNote, Loader2, Flower, Download, ShoppingBag } from "lucide-react";
-import { useNostrProfileQuery, useNostrNoteQuery, useNostrFileMetadataQuery } from "@/queries/nostr";
+import { useState, useContext } from "react";
+import { AtSign, StickyNote, Loader2, Flower, Download, ShoppingBag, MessageSquareQuote, Check } from "lucide-react";
+import { useNostrProfileQuery, useNostrNoteQuery, useNostrFileMetadataQuery, useCommentsQuery } from "@/queries/nostr";
 // @ts-ignore
 import fileIcon from "@/assets/file.png";
 
 // New query hook for product listings
 import { useNostrEventQuery } from "@/queries/nostr";
+import { HypernoteContext } from "./ElementRenderer";
+import { submitEvent } from "@/lib/nostr";
+import { useQueryClient } from "@tanstack/react-query";
+import { commentKeys } from "@/queries/queryKeyFactory";
 
 // Generic sticker component that handles data fetching based on filter
 interface GenericStickerProps {
@@ -12,16 +17,229 @@ interface GenericStickerProps {
   accessors: string[];
   stickerType: string;
   scaleFactor: number;
-  associatedData?: { displayFilename?: string };
+  associatedData?: { displayFilename?: string; promptText?: string };
+  methods?: { 
+    [key: string]: {
+      description?: string;
+      eventTemplate: {
+        kind: number;
+        tags?: string[][];
+        content?: string;
+        [key: string]: any;
+      };
+    } 
+  };
 }
+
+// New component for prompt stickers
+const PromptSticker: React.FC<{
+  promptText: string;
+  eventId?: string;
+  eventKind?: number;
+  pubkey?: string;
+  methods?: { 
+    [key: string]: {
+      description?: string;
+      eventTemplate: {
+        kind: number;
+        tags?: string[][];
+        content?: string;
+        [key: string]: any;
+      };
+    } 
+  };
+}> = ({ promptText, eventId, eventKind, pubkey, methods }) => {
+  const [input, setInput] = useState("");
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [success, setSuccess] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const queryClient = useQueryClient();
+  
+  // Debug: Log the received props
+  console.log("[Debug Prompt Sticker] Received props:", {
+    eventId,
+    eventKind,
+    pubkey: pubkey ? `${pubkey.substring(0, 8)}...` : undefined,
+    methodTypes: methods ? Object.keys(methods) : []
+  });
+  
+  const handleSubmit = async () => {
+    if (!input.trim()) return;
+    
+    // Check if we have necessary data to submit
+    if (!eventId || !pubkey) {
+      setError("Cannot submit: Missing event information");
+      return;
+    }
+    
+    setIsSubmitting(true);
+    setError(null);
+    
+    try {
+      // Check if we have the comment method defined
+      if (methods && methods.comment && methods.comment.eventTemplate) {
+        const method = methods.comment;
+        
+        // Create a map of placeholders to actual values
+        const placeholders = {
+          "${eventId}": eventId,
+          "${pubkey}": pubkey,
+          "${eventKind}": (eventKind || 31337).toString(),
+          "${content}": input
+        };
+        
+        // Submit the event using the template and placeholders
+        // No additional data needed as placeholders handle everything
+        const commentId = await submitEvent(
+          method.eventTemplate,
+          {}, // No additional data needed as we're using placeholders
+          placeholders
+        );
+        
+        if (commentId) {
+          setSuccess(true);
+          setInput("");
+          
+          // Create a synthetic comment object to add to the cache
+          // Include ALL the tags to ensure it matches any query format
+          const newComment = {
+            id: commentId,
+            pubkey: pubkey,
+            content: input,
+            created_at: Math.floor(Date.now() / 1000),
+            tags: [
+              // Root scope (uppercase per NIP-22)
+              ["E", eventId, "", pubkey],
+              ["K", (eventKind || 31337).toString()],
+              ["P", pubkey],
+              
+              // Parent scope (lowercase per NIP-22)
+              ["e", eventId, "", pubkey],
+              ["k", (eventKind || 31337).toString()],
+              ["p", pubkey]
+            ],
+            // Add additional metadata for client-side use
+            _localComment: true // Flag indicating this was added locally
+          };
+          
+          // First try to update the existing query data directly
+          queryClient.setQueryData(
+            commentKeys.list(eventId),
+            (oldData: any[] | undefined) => {
+              // If we have existing data, add the new comment to it
+              if (oldData && Array.isArray(oldData)) {
+                console.log("[Debug Comment Submit] Adding new comment to existing query data");
+                return [...oldData, newComment];
+              }
+              // Otherwise just return an array with the new comment
+              return [newComment];
+            }
+          );
+          
+          // Wait a bit before invalidating the query to give relays time to index
+          // this helps prevent the comment from disappearing after submission
+          console.log("[Debug Comment Submit] Delaying query invalidation to give relays time to index");
+          setTimeout(() => {
+            console.log("[Debug Comment Submit] Now invalidating comments query for event:", eventId);
+            
+            // Custom invalidate that preserves our local data
+            queryClient.invalidateQueries({ 
+              queryKey: commentKeys.list(eventId),
+              refetchType: 'all'
+            });
+          }, 8000); // Wait 8 seconds before refetching
+          
+          // Reset success message after a delay
+          setTimeout(() => setSuccess(false), 3000);
+        } else {
+          setError("Failed to publish comment");
+        }
+      } else {
+        setError("Comment method not configured for this prompt");
+      }
+    } catch (error) {
+      console.error("Error publishing:", error);
+      setError(error instanceof Error ? error.message : "Unknown error publishing");
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+  
+  return (
+    <div className="bg-white rounded-lg shadow-sm overflow-hidden">
+      <div className="rounded-full bg-purple-100 px-3 py-1.5 inline-flex items-center gap-1.5 m-2">
+        <MessageSquareQuote className="w-4 h-4 text-purple-700" />
+        <span className="text-sm font-semibold text-purple-800">
+          Prompt
+        </span>
+      </div>
+      
+      <div className="p-4">
+        <h3 className="text-lg font-medium mb-3">{promptText}</h3>
+        
+        <div className="space-y-3">
+          <textarea
+            value={input}
+            onChange={(e) => setInput(e.target.value)}
+            className="w-full border border-gray-300 rounded p-2 text-sm"
+            placeholder="Type your response..."
+            rows={3}
+            disabled={isSubmitting || success}
+          />
+          
+          {error && (
+            <p className="text-sm text-red-500">{error}</p>
+          )}
+          
+          <button
+            onClick={handleSubmit}
+            disabled={isSubmitting || !input.trim() || success}
+            className="bg-purple-600 hover:bg-purple-700 text-white py-2 px-4 rounded-md text-sm font-medium transition-colors w-full disabled:opacity-50"
+          >
+            {isSubmitting ? (
+              <span className="flex items-center justify-center gap-2">
+                <Loader2 className="h-4 w-4 animate-spin" />
+                Submitting...
+              </span>
+            ) : success ? (
+              <span className="flex items-center justify-center gap-2">
+                <Check className="h-4 w-4" />
+                Comment Published!
+              </span>
+            ) : (
+              "Submit"
+            )}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+};
 
 export const GenericSticker: React.FC<GenericStickerProps> = ({
   filter,
   accessors,
   stickerType,
   scaleFactor,
-  associatedData
+  associatedData,
+  methods
 }) => {
+  // Access hypernote context
+  const hypernoteContext = useContext(HypernoteContext);
+  
+  // Render a prompt sticker (no data fetching needed)
+  if (stickerType === 'prompt' && associatedData?.promptText) {
+    return (
+      <PromptSticker 
+        promptText={associatedData.promptText}
+        eventId={hypernoteContext?.hypernoteId}
+        eventKind={hypernoteContext?.hypernoteKind}
+        pubkey={hypernoteContext?.hypernotePubkey}
+        methods={methods}
+      />
+    );
+  }
+  
   // Use the appropriate query hook based on sticker type
   const profileQuery = useNostrProfileQuery(
     stickerType === 'mention' ? filter : { kinds: [0], authors: ['invalid'] },

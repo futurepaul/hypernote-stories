@@ -27,3 +27,10 @@ export const nostrKeys = {
     all: ['nostr'] as const,
     filter: (filter: Record<string, any>) => [...nostrKeys.all, filter] as const,
 }
+
+// Add commentKeys for NIP-22 comments
+export const commentKeys = {
+    all: ['comments'] as const,
+    list: (eventId: string) => [...commentKeys.all, eventId, 'list'] as const,
+    details: (commentId: string) => [...commentKeys.all, commentId, 'detail'] as const,
+} as const

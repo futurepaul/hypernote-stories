@@ -1,4 +1,4 @@
-import { X, AtSign, StickyNote, Bot, Zap, Flower, ShoppingBag } from "lucide-react";
+import { X, AtSign, StickyNote, Bot, Zap, Flower, ShoppingBag, MessageSquareQuote } from "lucide-react";
 import { useEditorStore } from "@/stores/editorStore";
 import { cn } from "@/lib/utils";
 import { BaseModal } from "@/components/ui/base-modal";
@@ -20,6 +20,11 @@ const stickers: Sticker[] = [
     id: "note",
     name: "Note",
     icon: <StickyNote className="w-6 h-6" />,
+  },
+  {
+    id: "prompt",
+    name: "Prompt",
+    icon: <MessageSquareQuote className="w-6 h-6" />,
   },
   {
     id: "blossom",
@@ -54,28 +59,61 @@ export interface StickerParam {
   required?: boolean;
 }
 
+// Define interface for stickers with filters
+export interface FilterBasedSticker {
+  id: string;
+  name: string;
+  icon: React.ReactNode;
+  filterTemplate: (mainParam: string, secondaryParam?: string) => Record<string, any>;
+  accessors: string[];
+  params: StickerParam[];
+  methods?: undefined;
+}
+
+// Define interface for stickers with methods
+export interface MethodBasedSticker {
+  id: string;
+  name: string;
+  icon: React.ReactNode;
+  methods: {
+    [key: string]: {
+      description?: string;
+      eventTemplate: {
+        [key: string]: any;
+        kind: number;
+        tags?: string[][];
+        content?: string;
+      };
+    };
+  };
+  paramAccessors: string[];
+}
+
 // This defines the sticker filter templates and accessors
-export const stickerDefinitions = {
-  mention: {
+export const stickerDefinitions: (FilterBasedSticker | MethodBasedSticker)[] = [
+  {
+    id: "mention",
     name: "Mention",
+    icon: <AtSign className="w-6 h-6" />,
     filterTemplate: (pubkey: string, _unused?: string) => ({ 
       kinds: [0], 
-      authors: [pubkey], 
-      limit: 1 
+      authors: [pubkey] 
     }),
-    accessors: ["content", "name", "picture", "nip05", "about"],
+    accessors: ["profile.name", "profile.displayName", "profile.image", "profile.picture"],
     params: [
       {
         key: "pubkey",
-        label: "Nostr Public Key",
-        placeholder: "Hex pubkey or npub...",
-        helpText: "Enter a valid npub1... or hex public key",
+        label: "Public Key",
+        placeholder: "npub...",
+        helpText: "Public key, npub, nprofile, etc. of the user",
         required: true
       }
     ] as StickerParam[]
   },
-  note: {
+  {
+    id: "note",
     name: "Note",
+    icon: <StickyNote className="w-6 h-6" />,
     filterTemplate: (id: string, _unused?: string) => ({ 
       kinds: [1], 
       ids: [id], 
@@ -92,8 +130,35 @@ export const stickerDefinitions = {
       }
     ] as StickerParam[]
   },
-  product: {
+  {
+    id: "prompt",
+    name: "Prompt",
+    icon: <MessageSquareQuote size={24} />,
+    methods: {
+      comment: {
+        eventTemplate: {
+          kind: 1111, // NIP-22 comment
+          content: "${content}", // Will be replaced with user input
+          tags: [
+            // Root event reference (uppercase for root scope per NIP-22)
+            ["E", "${eventId}", "", "${pubkey}"],
+            ["K", "${eventKind}"],
+            ["P", "${pubkey}"],
+            
+            // Parent scope (same as root for top-level comments, lowercase per NIP-22)
+            ["e", "${eventId}", "", "${pubkey}"],
+            ["k", "${eventKind}"],
+            ["p", "${pubkey}"]
+          ]
+        }
+      }
+    },
+    paramAccessors: []
+  },
+  {
+    id: "product",
     name: "Product",
+    icon: <ShoppingBag className="w-6 h-6" />,
     filterTemplate: (id: string, _unused?: string) => ({
       kinds: [30402],
       ids: [id],
@@ -110,8 +175,10 @@ export const stickerDefinitions = {
       }
     ] as StickerParam[]
   },
-  blossom: {
+  {
+    id: "blossom",
     name: "Blossom",
+    icon: <Flower className="w-6 h-6" />,
     filterTemplate: (hash: string, filename: string) => ({ 
       kinds: [1063], 
       '#x': [hash],
@@ -135,7 +202,7 @@ export const stickerDefinitions = {
       }
     ] as StickerParam[]
   }
-};
+];
 
 export function StickerModal() {
   const isStickerModalOpen = useEditorStore((state) => state.editorState.isStickerModalOpen);

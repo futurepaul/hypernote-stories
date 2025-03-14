@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { AtSign, StickyNote, Loader2, Trash2, Download, Flower } from "lucide-react";
+import { AtSign, StickyNote, Loader2, Trash2, Download, Flower, MessageSquareQuote, Check } from "lucide-react";
 import type { StickerElement as StickerElementType } from "@/stores/editorStore";
 import { fetchProfile, fetchNote, type NostrProfile } from "@/lib/nostr";
 import { GenericSticker } from "@/components/elements/GenericSticker";
@@ -63,6 +63,8 @@ export function StickerElement({
     baseWidth = 280; // File-like stickers can be a bit narrower
   } else if (element.stickerType === 'product') {
     baseWidth = 390; // Product stickers - width that works with the design
+  } else if (element.stickerType === 'prompt') {
+    baseWidth = 340; // Prompt stickers need space for the text field
   }
   
   const scaledWidth = Math.max(baseWidth * finalScaleFactor, element.stickerType === 'product' ? 350 : 200);
@@ -95,6 +97,7 @@ export function StickerElement({
             stickerType={element.stickerType} 
             scaleFactor={1} 
             associatedData={element.associatedData}
+            methods={element.methods}
           />
         </div>
       </div>

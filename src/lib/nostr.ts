@@ -9,7 +9,8 @@ const DEFAULT_RELAYS = [
   "wss://nos.lol",
   "wss://eden.nostr.land",
   "wss://140.f7z.io",
-  "ws://localhost:10547"
+  "wss://relay.nostr.band",
+  "ws://localhost:10547",
 ];
 
 class NostrService {
@@ -49,6 +50,7 @@ class NostrService {
       });
       
       console.log("NDK initialized with signer:", !!signer);
+      console.log("Using relays:", DEFAULT_RELAYS);
     } catch (err) {
       console.error("Error during NostrService initialization:", err);
       
@@ -158,10 +160,25 @@ class NostrService {
     
     try {
       console.log(`Connecting to relays (attempt ${this._connectRetries + 1}/${this._maxRetries + 1})...`);
-      await this.ndk.connect();
-      this._isConnected = true;
-      this._isConnecting = false;
-      console.log("Successfully connected to relays");
+      console.log(`Using relays: ${JSON.stringify(DEFAULT_RELAYS)}`);
+      
+      // Set a timeout for the connection attempt
+      const connectionPromise = this.ndk.connect();
+      const timeoutPromise = new Promise<void>((_, reject) => {
+        setTimeout(() => reject(new Error("Connection timeout")), 10000); // 10 second timeout
+      });
+      
+      // Race between connection and timeout
+      await Promise.race([connectionPromise, timeoutPromise])
+        .then(() => {
+          console.log("Connection successful!");
+          this._isConnected = true;
+          this._isConnecting = false;
+        })
+        .catch((error) => {
+          console.error("Connection failed with error:", error);
+          throw error; // Re-throw to trigger retry
+        });
     } catch (error) {
       console.error(`Error connecting to relays (attempt ${this._connectRetries + 1}):`, error);
       
@@ -181,6 +198,8 @@ class NostrService {
       } else {
         // Give up after max retries
         console.error(`Failed to connect after ${this._maxRetries + 1} attempts`);
+        // Set a flag to indicate connection was attempted but failed
+        this._isConnecting = false;
         throw error;
       }
     }
@@ -548,4 +567,270 @@ export function extractHashFromUrl(input: string): string | null {
   }
   
   return null;
-} 
+}
+
+/**
+ * Publish a NIP-22 comment event (kind 1111)
+ * @param content Comment text content
+ * @param rootEvent Event being commented on (e.g., hypernote)
+ * @returns The event ID if successful, null otherwise
+ */
+export async function publishComment(
+  content: string,
+  rootEvent: {
+    id: string;
+    kind: number;
+    pubkey: string;
+  }
+): Promise<string | null> {
+  try {
+    const service = nostrService;
+    
+    // Make sure we're connected to relays
+    if (!service.isConnected) {
+      await service.connect();
+    }
+    
+    // Get NDK instance safely
+    const ndk = await service.getNdk();
+    
+    // Create a new event
+    const event = new NDKEvent(ndk);
+    event.kind = 1111;  // NIP-22 comment
+    event.content = content;
+    
+    // Add tags according to NIP-22
+    event.tags = [
+      // Root scope
+      ["E", rootEvent.id, "", rootEvent.pubkey],
+      ["K", rootEvent.kind.toString()],
+      ["P", rootEvent.pubkey],
+      
+      // Parent (same as root for top-level comments)
+      ["e", rootEvent.id, "", rootEvent.pubkey],
+      ["k", rootEvent.kind.toString()],
+      ["p", rootEvent.pubkey]
+    ];
+    
+    // Sign and publish the event
+    const success = await service.publishEvent(event);
+    
+    if (success) {
+      console.log('[Nostr] Published comment event:', event.id);
+      return event.id;
+    }
+    
+    return null;
+  } catch (error) {
+    console.error('Error publishing comment:', error);
+    return null;
+  }
+}
+
+// Helper function to ensure a relay is available
+const ensureRelay = async () => {
+  if (!window.nostr) {
+    throw new Error("Nostr extension not available");
+  }
+  
+  console.log("[Nostr] Using NDK instance for relay publishing");
+  
+  // Get the NDK instance
+  await nostrService.connect(); // Make sure we're connected
+  const ndk = await nostrService.getNdk();
+  
+  // Return a relay-like object that uses NDK for publishing
+  return {
+    publish: (signedEvent: any) => {
+      // Create a promise-based event emitter
+      const emitter = {
+        on: (event: string, callback: Function) => {
+          if (event === 'ok') {
+            // Create an NDK event from the signed event
+            const ndkEvent = new NDKEvent(ndk);
+            
+            // Copy all properties from the signed event
+            Object.keys(signedEvent).forEach(key => {
+              if (key !== 'sig' && key !== 'id') {
+                ndkEvent[key] = signedEvent[key];
+              }
+            });
+            
+            // Set the signature and ID from the signed event
+            ndkEvent.sig = signedEvent.sig;
+            ndkEvent.id = signedEvent.id;
+            
+            // Publish via NDK
+            console.log("[Nostr] Publishing event to NDK relays:", {
+              id: ndkEvent.id,
+              kind: ndkEvent.kind,
+              content: ndkEvent.content?.substring(0, 30) + '...',
+              tags: ndkEvent.tags
+            });
+            
+            ndkEvent.publish()
+              .then(() => {
+                console.log("[Nostr] Successfully published via NDK");
+                callback();
+              })
+              .catch(err => {
+                console.error("[Nostr] Failed to publish via NDK:", err);
+                // Still call the callback to avoid hanging
+                callback();
+              });
+          }
+          return emitter;
+        }
+      };
+      return emitter;
+    }
+  };
+};
+
+// Helper function to replace placeholders in strings
+const replacePlaceholders = (text: string, placeholders: Record<string, string>): string => {
+  if (typeof text !== 'string') return text;
+  
+  let result = text;
+  Object.entries(placeholders).forEach(([placeholder, value]) => {
+    result = result.replace(new RegExp(placeholder.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'g'), value);
+  });
+  return result;
+};
+
+/**
+ * Submit an event using a template and additional data
+ * This is a generic function that can be used for any type of event
+ * @param eventTemplate Partial NDKEvent definition (template with pre-filled values)
+ * @param additionalData Additional data to merge with the template
+ * @param placeholders Optional key-value pairs to replace placeholders in the template content and tags
+ *                    Common placeholders include:
+ *                    - ${eventId}: ID of the current event (e.g., for replies)
+ *                    - ${pubkey}: Public key of the event author
+ *                    - ${eventKind}: Kind of the current event
+ *                    - ${content}: Content from user input
+ * @returns The event ID if successful, null otherwise
+ */
+export const submitEvent = async (
+  eventTemplate: Record<string, any>,
+  additionalData: Record<string, any>,
+  placeholders?: Record<string, string>
+): Promise<string | null> => {
+  try {
+    if (!window.nostr) {
+      throw new Error("Nostr extension not available");
+    }
+
+    // Clone the template to avoid mutating the original
+    const clonedTemplate = JSON.parse(JSON.stringify(eventTemplate));
+    
+    console.log("[Debug Comment Submit] Original template:", JSON.stringify(clonedTemplate, null, 2));
+    console.log("[Debug Comment Submit] Placeholders:", JSON.stringify(placeholders, null, 2));
+    
+    // Apply placeholders if provided
+    if (placeholders) {
+      // Process content
+      if (typeof clonedTemplate.content === 'string') {
+        clonedTemplate.content = replacePlaceholders(clonedTemplate.content, placeholders);
+      }
+      
+      // Process tags
+      if (Array.isArray(clonedTemplate.tags)) {
+        clonedTemplate.tags = clonedTemplate.tags.map(tag => 
+          tag.map(item => replacePlaceholders(item, placeholders))
+        );
+      }
+      
+      console.log("[Debug Comment Submit] After placeholder replacement:", JSON.stringify(clonedTemplate, null, 2));
+    }
+
+    // Merge the template with additional data
+    const mergedEvent = {
+      ...clonedTemplate,
+      ...additionalData,
+      created_at: Math.floor(Date.now() / 1000),
+    };
+
+    // If additional data contains tags, merge them carefully
+    if (additionalData.tags && Array.isArray(additionalData.tags)) {
+      mergedEvent.tags = [
+        ...(clonedTemplate.tags || []),
+        ...additionalData.tags,
+      ];
+    }
+
+    // Clean up the event (remove any undefined/null values)
+    Object.keys(mergedEvent).forEach((key) => {
+      if (mergedEvent[key] === undefined || mergedEvent[key] === null) {
+        delete mergedEvent[key];
+      }
+    });
+
+    console.log("[Debug Comment Submit] Final event before submitting:", JSON.stringify(mergedEvent, null, 2));
+    
+    // Submit the event to Nostr
+    const signedEvent = await window.nostr.signEvent(mergedEvent);
+    const relay = await ensureRelay();
+    
+    // Store the event ID for direct lookup later
+    const eventId = (signedEvent as any).id;
+    console.log("[Debug Comment Submit] Signed event ID:", eventId);
+    
+    // Try to verify the event was published by looking it up after a delay
+    setTimeout(async () => {
+      try {
+        await verifyEventPublished(eventId);
+      } catch (e) {
+        console.error("[Debug] Failed to verify event published:", e);
+      }
+    }, 5000);
+    
+    const pub = relay.publish(signedEvent);
+    
+    return new Promise((resolve) => {
+      pub.on("ok", () => {
+        // Use optional chaining and fallback to sig
+        const eventId = (signedEvent as any).id || signedEvent.sig;
+        console.log("[Debug Comment Submit] Event published successfully:", eventId);
+        resolve(eventId);
+      });
+      
+      pub.on("failed", (reason: string) => {
+        console.error("[Debug Comment Submit] Failed to publish event:", reason);
+        resolve(null);
+      });
+    });
+  } catch (error) {
+    console.error("Error submitting event:", error);
+    return null;
+  }
+};
+
+// Helper function to directly check if an event exists in the relays
+export const verifyEventPublished = async (eventId: string): Promise<boolean> => {
+  try {
+    console.log("[Debug] Verifying event was published:", eventId);
+    
+    if (!nostrService.isConnected) {
+      await nostrService.connect();
+    }
+    
+    const ndk = await nostrService.getNdk();
+    const event = await ndk.fetchEvent(eventId);
+    
+    if (event) {
+      console.log("[Debug] Successfully verified event exists in relays:", {
+        id: event.id,
+        kind: event.kind,
+        tags: event.tags.map(t => t[0]).join(',')
+      });
+      return true;
+    } else {
+      console.warn("[Debug] Could not find event in relays:", eventId);
+      return false;
+    }
+  } catch (error) {
+    console.error("[Debug] Error verifying event:", error);
+    return false;
+  }
+}; 

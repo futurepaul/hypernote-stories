@@ -1,8 +1,9 @@
 import { NDKEvent } from "@nostr-dev-kit/ndk";
 import type { NDKFilter } from "@nostr-dev-kit/ndk";
 import { nostrService } from "@/lib/nostr";
-import { nostrKeys } from "./queryKeyFactory";
+import { nostrKeys, commentKeys } from "./queryKeyFactory";
 import { useQuery, queryOptions } from "@tanstack/react-query";
+import { QueryClient } from "@tanstack/react-query";
 
 /**
  * Generic type for Nostr response data
@@ -431,6 +432,86 @@ export const nostrFileMetadataQueryOptions = (filter: NDKFilter) => queryOptions
 });
 
 /**
+ * React Query options for fetching NIP-22 comments for an event
+ */
+export const commentsQueryOptions = (eventId: string) => queryOptions({
+  queryKey: commentKeys.list(eventId),
+  queryFn: async () => {
+    try {
+      console.log('[Debug Comments] Fetching comments for event ID:', eventId);
+      
+      // We don't need to access the cache here anymore - the local comment preservation
+      // is handled by the component that calls this query
+      
+      // Wait for connection if not already connected
+      if (!nostrService.isConnected) {
+        await nostrService.connect();
+      }
+
+      // Get NDK instance safely
+      const ndk = await nostrService.getNdk();
+      
+      // Try both uppercase and lowercase, combining the results
+      const upperFilter = {
+        kinds: [1111],  // NIP-22 comments
+        "#E": [eventId]  // Root reference (uppercase)
+      };
+      
+      const lowerFilter = {
+        kinds: [1111],  // NIP-22 comments
+        "#e": [eventId]  // Parent reference (lowercase)
+      };
+      
+      console.log('[Debug Comments] Using filters:', JSON.stringify({
+        upperFilter,
+        lowerFilter
+      }));
+      
+      // Fetch events with both filters
+      const upperEvents = await ndk.fetchEvents(upperFilter);
+      const lowerEvents = await ndk.fetchEvents(lowerFilter);
+      
+      // Combine results (deduplicating by event ID)
+      const eventMap = new Map();
+      
+      // Convert Sets to Arrays before iterating
+      Array.from(upperEvents).forEach(event => {
+        eventMap.set(event.id, event);
+      });
+      
+      Array.from(lowerEvents).forEach(event => {
+        eventMap.set(event.id, event);
+      });
+      
+      const eventsArray = Array.from(eventMap.values());
+      
+      console.log(`[Debug Comments] Found ${eventsArray.length} total comments from relays (${Array.from(upperEvents).length} from E tag, ${Array.from(lowerEvents).length} from e tag)`);
+      
+      // Convert NDK events to our format
+      const comments = eventsArray
+        .map(event => ({
+          id: event.id,
+          pubkey: event.pubkey,
+          content: event.content,
+          created_at: event.created_at || 0,
+          tags: event.tags || []
+        }))
+        .sort((a, b) => (a.created_at || 0) - (b.created_at || 0));
+      
+      return comments;
+    } catch (error) {
+      console.error('[Debug Comments] Error fetching comments:', error);
+      return [];
+    }
+  },
+  // Keep data fresher for longer to avoid too many refetches
+  staleTime: 20000, // 20 seconds
+  gcTime: 900000,   // 15 minutes
+  retry: 2,
+  networkMode: 'always',
+});
+
+/**
  * Custom hook for fetching Nostr events using a filter
  */
 export const useNostrEventsQuery = (
@@ -536,6 +617,19 @@ export const useNostrFileMetadataQuery = (
   return useQuery({
     ...nostrFileMetadataQueryOptions(filter),
     ...mergedOptions,
+  });
+};
+
+/**
+ * Custom hook for fetching NIP-22 comments
+ */
+export const useCommentsQuery = (
+  eventId: string,
+  options = {}
+) => {
+  return useQuery({
+    ...commentsQueryOptions(eventId),
+    ...options,
   });
 };
 

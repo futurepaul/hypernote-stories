@@ -1,4 +1,4 @@
-import { useRef, useEffect, useState } from "react";
+import { useRef, useEffect, useState, createContext } from "react";
 import { TextElement } from "./TextElement";
 import { ImageElement } from "./ImageElement";
 import { VideoElement } from "./VideoElement";
@@ -12,6 +12,13 @@ import type {
   StickerElement as StickerElementType
 } from "@/stores/editorStore";
 
+// Create a context to pass down hypernote information
+export const HypernoteContext = createContext<{
+  hypernoteId?: string;
+  hypernoteKind?: number;
+  hypernotePubkey?: string;
+} | null>(null);
+
 interface ElementRendererProps {
   elements: (TextElementType | ImageElementType | VideoElementType | FileElementType | StickerElementType)[];
   isEditingDisabled?: boolean;
@@ -22,6 +29,10 @@ interface ElementRendererProps {
   onElementUpdate?: (elementId: string, updates: any) => void;
   onElementWidthUpdate?: (elementId: string, width: number) => void;
   openEditModal?: (e: React.MouseEvent) => void;
+  // Add new properties for hypernote context
+  hypernoteId?: string;
+  hypernoteKind?: number;
+  hypernotePubkey?: string;
 }
 
 export function ElementRenderer({
@@ -34,6 +45,10 @@ export function ElementRenderer({
   onElementUpdate,
   onElementWidthUpdate,
   openEditModal,
+  // Add hypernote context properties with defaults
+  hypernoteId,
+  hypernoteKind = 31337, // Default to hypernote kind
+  hypernotePubkey,
 }: ElementRendererProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const [scaleFactor, setScaleFactor] = useState(1);
@@ -68,107 +83,111 @@ export function ElementRenderer({
   };
 
   return (
-    <div
-      ref={containerRef}
-      className="w-full h-full relative select-none"
-      onClick={handleCanvasClick}
+    <HypernoteContext.Provider 
+      value={{ hypernoteId, hypernoteKind, hypernotePubkey }}
     >
-      {elements.map((element) => {
-        // Scale calculations: our design space is 1080x1920, but we're rendering in a responsive container
-        const xPercent = (element.x / 1080) * 100;
-        const yPercent = (element.y / 1920) * 100;
-        const selected = !isEditingDisabled && selectedElementId === element.id;
+      <div
+        ref={containerRef}
+        className="w-full h-full relative select-none"
+        onClick={handleCanvasClick}
+      >
+        {elements.map((element) => {
+          // Scale calculations: our design space is 1080x1920, but we're rendering in a responsive container
+          const xPercent = (element.x / 1080) * 100;
+          const yPercent = (element.y / 1920) * 100;
+          const selected = !isEditingDisabled && selectedElementId === element.id;
 
-        // Render based on element type
-        if (element.type === "text") {
-          return (
-            <TextElement
-              key={element.id}
-              element={element}
-              selected={selected}
-              xPercent={xPercent}
-              yPercent={yPercent}
-              scaleFactor={scaleFactor}
-              isEditingDisabled={isEditingDisabled}
-              startDrag={onElementDrag || (() => {})}
-              openEditModal={openEditModal || (() => {})}
-              handleDeleteElement={onElementDelete || (() => {})}
-            />
-          );
-        }
+          // Render based on element type
+          if (element.type === "text") {
+            return (
+              <TextElement
+                key={element.id}
+                element={element}
+                selected={selected}
+                xPercent={xPercent}
+                yPercent={yPercent}
+                scaleFactor={scaleFactor}
+                isEditingDisabled={isEditingDisabled}
+                startDrag={onElementDrag || (() => {})}
+                openEditModal={openEditModal || (() => {})}
+                handleDeleteElement={onElementDelete || (() => {})}
+              />
+            );
+          }
 
-        // Render sticker elements
-        if (element.type === "sticker") {
-          return (
-            <StickerElement
-              key={element.id}
-              element={element}
-              selected={selected}
-              xPercent={xPercent}
-              yPercent={yPercent}
-              scaleFactor={scaleFactor}
-              isEditingDisabled={isEditingDisabled}
-              startDrag={onElementDrag || (() => {})}
-              handleDeleteElement={onElementDelete || (() => {})}
-            />
-          );
-        }
+          // Render sticker elements
+          if (element.type === "sticker") {
+            return (
+              <StickerElement
+                key={element.id}
+                element={element}
+                selected={selected}
+                xPercent={xPercent}
+                yPercent={yPercent}
+                scaleFactor={scaleFactor}
+                isEditingDisabled={isEditingDisabled}
+                startDrag={onElementDrag || (() => {})}
+                handleDeleteElement={onElementDelete || (() => {})}
+              />
+            );
+          }
 
-        // Render image elements
-        if (element.type === "image") {
-          return (
-            <ImageElement
-              key={element.id}
-              element={element}
-              selected={selected}
-              xPercent={xPercent}
-              yPercent={yPercent}
-              scaleFactor={scaleFactor}
-              isEditingDisabled={isEditingDisabled}
-              startDrag={onElementDrag || (() => {})}
-              handleDeleteElement={onElementDelete || (() => {})}
-              updateWidth={(width) => onElementWidthUpdate?.(element.id, width)}
-            />
-          );
-        }
+          // Render image elements
+          if (element.type === "image") {
+            return (
+              <ImageElement
+                key={element.id}
+                element={element}
+                selected={selected}
+                xPercent={xPercent}
+                yPercent={yPercent}
+                scaleFactor={scaleFactor}
+                isEditingDisabled={isEditingDisabled}
+                startDrag={onElementDrag || (() => {})}
+                handleDeleteElement={onElementDelete || (() => {})}
+                updateWidth={(width) => onElementWidthUpdate?.(element.id, width)}
+              />
+            );
+          }
 
-        // Render video elements
-        if (element.type === "video") {
-          return (
-            <VideoElement
-              key={element.id}
-              element={element}
-              selected={selected}
-              xPercent={xPercent}
-              yPercent={yPercent}
-              scaleFactor={scaleFactor}
-              isEditingDisabled={isEditingDisabled}
-              startDrag={onElementDrag || (() => {})}
-              handleDeleteElement={onElementDelete || (() => {})}
-              updateWidth={(width) => onElementWidthUpdate?.(element.id, width)}
-            />
-          );
-        }
+          // Render video elements
+          if (element.type === "video") {
+            return (
+              <VideoElement
+                key={element.id}
+                element={element}
+                selected={selected}
+                xPercent={xPercent}
+                yPercent={yPercent}
+                scaleFactor={scaleFactor}
+                isEditingDisabled={isEditingDisabled}
+                startDrag={onElementDrag || (() => {})}
+                handleDeleteElement={onElementDelete || (() => {})}
+                updateWidth={(width) => onElementWidthUpdate?.(element.id, width)}
+              />
+            );
+          }
 
-        // Render file elements
-        if (element.type === "file") {
-          return (
-            <FileElement
-              key={element.id}
-              element={element}
-              selected={selected}
-              xPercent={xPercent}
-              yPercent={yPercent}
-              scaleFactor={scaleFactor}
-              isEditingDisabled={isEditingDisabled}
-              startDrag={onElementDrag || (() => {})}
-              handleDeleteElement={onElementDelete || (() => {})}
-            />
-          );
-        }
+          // Render file elements
+          if (element.type === "file") {
+            return (
+              <FileElement
+                key={element.id}
+                element={element}
+                selected={selected}
+                xPercent={xPercent}
+                yPercent={yPercent}
+                scaleFactor={scaleFactor}
+                isEditingDisabled={isEditingDisabled}
+                startDrag={onElementDrag || (() => {})}
+                handleDeleteElement={onElementDelete || (() => {})}
+              />
+            );
+          }
 
-        return null;
-      })}
-    </div>
+          return null;
+        })}
+      </div>
+    </HypernoteContext.Provider>
   );
 } 

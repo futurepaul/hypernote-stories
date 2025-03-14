@@ -5,9 +5,9 @@ import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import * as z from "zod";
-import { AtSign, StickyNote, File as FileIcon, Flower, Loader2, ShoppingBag } from "lucide-react";
+import { AtSign, StickyNote, File as FileIcon, Flower, Loader2, ShoppingBag, MessageSquareQuote } from "lucide-react";
 import { stickerDefinitions } from "./StickerModal";
-import type { StickerParam } from "./StickerModal";
+import type { StickerParam, FilterBasedSticker, MethodBasedSticker } from "./StickerModal";
 import { decodeNostrId, publishFileMetadata, extractHashFromUrl } from "@/lib/nostr";
 import { GenericSticker } from "@/components/elements/GenericSticker";
 import { BaseModal } from "@/components/ui/base-modal";
@@ -19,6 +19,8 @@ const StickerIcon = ({ stickerType }: { stickerType: string }) => {
       return <AtSign className="h-5 w-5 text-blue-500" />;
     case 'note':
       return <StickyNote className="h-5 w-5 text-yellow-600" />;
+    case 'prompt':
+      return <MessageSquareQuote className="h-5 w-5 text-purple-500" />;
     case 'product':
       return <ShoppingBag className="h-5 w-5 text-purple-600" />;
     case 'blossom':
@@ -34,7 +36,17 @@ interface EnhancedStickerParamModalProps {
   stickerName: string;
   isOpen: boolean;
   onClose: () => void;
-  onAdd: (stickerType: string, filter: any, accessors: string[], associatedData?: Record<string, any>) => void;
+  onAdd: (stickerType: string, filter: any, accessors: string[], associatedData?: Record<string, any>, methods?: { 
+    [key: string]: {
+      description?: string;
+      eventTemplate: {
+        kind: number;
+        tags?: string[][];
+        content?: string;
+        [key: string]: any;
+      };
+    } 
+  }) => void;
 }
 
 export function EnhancedStickerParamModal({
@@ -48,22 +60,43 @@ export function EnhancedStickerParamModal({
   const [error, setError] = useState<string | null>(null);
   
   // Get definition for this sticker type
-  const definition = stickerDefinitions[stickerId as keyof typeof stickerDefinitions];
+  const definition = Array.isArray(stickerDefinitions) 
+    ? stickerDefinitions.find(def => def.id === stickerId)
+    : stickerDefinitions[stickerId as keyof typeof stickerDefinitions];
+    
   if (!isOpen || !definition) {
     return null;
   }
+
+  // Check if it's a filter-based or method-based sticker
+  const isFilterBased = (def: any): def is FilterBasedSticker => 
+    'filterTemplate' in def && 'accessors' in def && 'params' in def;
+  
+  const isMethodBased = (def: any): def is MethodBasedSticker => 
+    'methods' in def && 'paramAccessors' in def;
 
   // Create a dynamic schema based on sticker type
   const createSchemaForStickerType = () => {
     const schemaFields: Record<string, any> = {};
     
-    definition.params.forEach(param => {
-      const isRequired = param.required !== false;
-      const baseField = z.string();
-      schemaFields[param.key] = isRequired ? 
-        baseField.min(1, { message: `${param.label} is required` }) : 
-        baseField.optional();
-    });
+    // For method-based stickers with special parameters
+    if (isMethodBased(definition)) {
+      if (stickerId === 'prompt') {
+        schemaFields.promptText = z.string().min(1, { message: "Prompt text is required" });
+      }
+      return z.object(schemaFields);
+    }
+    
+    // For filter-based stickers with params
+    if (isFilterBased(definition)) {
+      definition.params.forEach(param => {
+        const isRequired = param.required !== false;
+        const baseField = z.string();
+        schemaFields[param.key] = isRequired ? 
+          baseField.min(1, { message: `${param.label} is required` }) : 
+          baseField.optional();
+      });
+    }
     
     return z.object(schemaFields);
   };
@@ -74,9 +107,22 @@ export function EnhancedStickerParamModal({
     resolver: zodResolver(formSchema),
     defaultValues: (() => {
       const defaults: Record<string, string> = {};
-      definition.params.forEach(param => {
-        defaults[param.key] = "";
-      });
+      
+      // For method-based stickers with special parameters
+      if (isMethodBased(definition)) {
+        if (stickerId === 'prompt') {
+          defaults.promptText = "";
+        }
+        return defaults;
+      }
+      
+      // For filter-based stickers with params
+      if (isFilterBased(definition)) {
+        definition.params.forEach(param => {
+          defaults[param.key] = "";
+        });
+      }
+      
       return defaults;
     })()
   });
@@ -106,18 +152,26 @@ export function EnhancedStickerParamModal({
     // Create the filter based on sticker type
     let mainFilter: Record<string, any> = {};
     
-    if (stickerId === 'mention' && watchedValues.pubkey) {
-      const pubkey = getProcessedValue(watchedValues.pubkey);
-      mainFilter = definition.filterTemplate(pubkey, "");
+    // For method-based stickers like prompt, we don't need a filter
+    if (isMethodBased(definition)) {
+      return {};
     }
-    else if ((stickerId === 'note' || stickerId === 'product') && watchedValues.id) {
-      const id = getProcessedValue(watchedValues.id);
-      mainFilter = definition.filterTemplate(id, "");
-    }
-    else if (stickerId === 'blossom' && watchedValues.url) {
-      const hash = extractHashFromUrl(watchedValues.url);
-      if (hash) {
-        mainFilter = definition.filterTemplate(hash, watchedValues.filename || "");
+    
+    // Handle filter-based stickers
+    if (isFilterBased(definition)) {
+      if (stickerId === 'mention' && watchedValues.pubkey) {
+        const pubkey = getProcessedValue(watchedValues.pubkey);
+        mainFilter = definition.filterTemplate(pubkey, "");
+      }
+      else if ((stickerId === 'note' || stickerId === 'product') && watchedValues.id) {
+        const id = getProcessedValue(watchedValues.id);
+        mainFilter = definition.filterTemplate(id, "");
+      }
+      else if (stickerId === 'blossom' && watchedValues.url) {
+        const hash = extractHashFromUrl(watchedValues.url);
+        if (hash) {
+          mainFilter = definition.filterTemplate(hash, watchedValues.filename || "");
+        }
       }
     }
     
@@ -136,6 +190,14 @@ export function EnhancedStickerParamModal({
   if (stickerId === 'blossom' && watchedValues.filename) {
     previewAssociatedData.displayFilename = watchedValues.filename;
   }
+  if (stickerId === 'prompt' && watchedValues.promptText) {
+    previewAssociatedData.promptText = watchedValues.promptText;
+  }
+  
+  // For method-based stickers, create a methods object for preview
+  const previewMethods = isMethodBased(definition) ? {
+    ...definition.methods
+  } : undefined;
 
   // Handle form submission
   const onSubmit = async (values: z.infer<typeof formSchema>) => {
@@ -143,67 +205,131 @@ export function EnhancedStickerParamModal({
       setIsSubmitting(true);
       setError(null);
       
-      // Process values (decode Nostr IDs as needed)
-      const processedParams: Record<string, string> = {};
-      
-      for (const param of definition.params) {
-        const value = values[param.key];
-        
-        // Skip empty optional parameters
-        if (!value && param.required === false) {
-          continue;
+      // Handle method-based stickers (like prompt)
+      if (isMethodBased(definition)) {
+        // For prompt stickers, handle promptText
+        if (stickerId === 'prompt') {
+          const associatedData = {
+            promptText: values.promptText
+          };
+          
+          // Convert methods to the format expected by StickerElement
+          // We need to include description even if it's optional in the definition
+          const methodsForSticker: { 
+            [key: string]: {
+              description: string;
+              eventTemplate: {
+                kind: number;
+                tags?: string[][];
+                content?: string;
+                [key: string]: any;
+              };
+            } 
+          } = {};
+          
+          Object.entries(definition.methods).forEach(([key, value]) => {
+            methodsForSticker[key] = {
+              description: value.description || key, // Use key as fallback if description is missing
+              eventTemplate: value.eventTemplate
+            };
+          });
+          
+          onAdd(stickerId, {}, definition.paramAccessors || [], associatedData, methodsForSticker);
+          onClose();
+          return;
         }
-        
-        // Process value (decode Nostr IDs if needed)
-        let processedValue = value;
-        
-        // If it looks like a bech32 id (npub1, note1, etc.)
-        if (/^(npub|note|nevent)1[0-9a-z]+$/i.test(value)) {
-          try {
-            const decoded = decodeNostrId(value);
-            if (!decoded || !decoded.data) {
-              throw new Error(`Invalid ${param.label} format`);
-            }
-            processedValue = decoded.data;
-          } catch (e) {
-            throw new Error(`Failed to decode ${param.label}: ${e instanceof Error ? e.message : 'Unknown error'}`);
-          }
-        }
-        
-        processedParams[param.key] = processedValue;
       }
       
-      // Special handling for blossom stickers - publish file metadata
-      if (stickerId === 'blossom') {
-        const url = processedParams.url;
-        const hash = extractHashFromUrl(url);
+      // Handle filter-based stickers
+      if (isFilterBased(definition)) {
+        // Process values (decode Nostr IDs as needed)
+        const processedParams: Record<string, string> = {};
         
-        if (!hash) {
-          throw new Error('Could not find a valid SHA-256 hash in the URL');
-        }
-        
-        // Publish the file metadata event
-        setError('Publishing file metadata...');
-
-        const eventId = await publishFileMetadata(
-          url, 
-          hash,
-          { 
-            filename: processedParams.filename,
-            // Could extract MIME type from file extension if needed
+        for (const param of definition.params) {
+          const value = values[param.key];
+          
+          // Skip empty optional parameters
+          if (!value && param.required === false) {
+            continue;
           }
-        );
-        
-        if (!eventId) {
-          throw new Error('Failed to publish file metadata. Please ensure you have a Nostr extension enabled.');
+          
+          // Process value (decode Nostr IDs if needed)
+          let processedValue = value;
+          
+          // If it looks like a bech32 id (npub1, note1, etc.)
+          if (/^(npub|note|nevent)1[0-9a-z]+$/i.test(value)) {
+            try {
+              const decoded = decodeNostrId(value);
+              if (!decoded || !decoded.data) {
+                throw new Error(`Invalid ${param.label} format`);
+              }
+              processedValue = decoded.data;
+            } catch (e) {
+              throw new Error(`Failed to decode ${param.label}: ${e instanceof Error ? e.message : 'Unknown error'}`);
+            }
+          }
+          
+          processedParams[param.key] = processedValue;
         }
         
-        // Create the filter using the hash
-        const filter = definition.filterTemplate(hash, processedParams.filename || "");
+        // Special handling for blossom stickers - publish file metadata
+        if (stickerId === 'blossom') {
+          const url = processedParams.url;
+          const hash = extractHashFromUrl(url);
+          
+          if (!hash) {
+            throw new Error('Could not find a valid SHA-256 hash in the URL');
+          }
+          
+          // Publish the file metadata event
+          setError('Publishing file metadata...');
+
+          const eventId = await publishFileMetadata(
+            url, 
+            hash,
+            { 
+              filename: processedParams.filename,
+              // Could extract MIME type from file extension if needed
+            }
+          );
+          
+          if (!eventId) {
+            throw new Error('Failed to publish file metadata. Please ensure you have a Nostr extension enabled.');
+          }
+          
+          // Create the filter using the hash
+          const filter = definition.filterTemplate(hash, processedParams.filename || "");
+          
+          // Set up the associated data
+          const associatedData: Record<string, any> = {};
+          if (processedParams.filename) {
+            associatedData.displayFilename = processedParams.filename;
+          }
+          
+          // Call onAdd with the new sticker parameters
+          onAdd(stickerId, filter, definition.accessors, associatedData);
+          onClose();
+          return;
+        }
         
-        // Set up the associated data
+        // Handle other filter-based sticker types (mention, note, product)
+        let filter;
+        
+        if (stickerId === 'mention') {
+          filter = definition.filterTemplate(processedParams.pubkey, "");
+        } else if (stickerId === 'note' || stickerId === 'product') {
+          filter = definition.filterTemplate(processedParams.id, "");
+        } else {
+          // Generic fallback
+          const firstParam = Object.values(processedParams)[0];
+          filter = definition.filterTemplate(firstParam, "");
+        }
+        
+        // Create associatedData object for non-filter properties
         const associatedData: Record<string, any> = {};
-        if (processedParams.filename) {
+        
+        // Add display parameters that aren't part of the Nostr filter
+        if (stickerId === 'blossom' && processedParams.filename) {
           associatedData.displayFilename = processedParams.filename;
         }
         
@@ -213,30 +339,7 @@ export function EnhancedStickerParamModal({
         return;
       }
       
-      // Handle other sticker types (mention, note)
-      let filter;
-      
-      if (stickerId === 'mention') {
-        filter = definition.filterTemplate(processedParams.pubkey, "");
-      } else if (stickerId === 'note') {
-        filter = definition.filterTemplate(processedParams.id, "");
-      } else {
-        // Generic fallback if we have a new sticker type
-        const firstParam = Object.values(processedParams)[0];
-        filter = definition.filterTemplate(firstParam, "");
-      }
-      
-      // Create associatedData object for non-filter properties
-      const associatedData: Record<string, any> = {};
-      
-      // Add display parameters that aren't part of the Nostr filter
-      if (stickerId === 'blossom' && processedParams.filename) {
-        associatedData.displayFilename = processedParams.filename;
-      }
-      
-      // Call onAdd with the new sticker parameters
-      onAdd(stickerId, filter, definition.accessors, associatedData);
-      
+      // Fallback for unknown sticker types
       onClose();
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Unknown error');
@@ -294,8 +397,35 @@ export function EnhancedStickerParamModal({
           onSubmit={form.handleSubmit(onSubmit)} 
           className="space-y-4"
         >
-          {/* Dynamically generate form fields from sticker definition */}
-          {definition.params.map((param) => (
+          {/* Dynamically generate form fields based on sticker type */}
+          {isMethodBased(definition) && stickerId === 'prompt' && (
+            <FormField
+              control={form.control}
+              name="promptText"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>
+                    <span className="flex items-center gap-1.5">
+                      <MessageSquareQuote className="w-4 h-4 text-purple-500" />
+                      <span>Prompt Text</span>
+                    </span>
+                  </FormLabel>
+                  <FormControl>
+                    <Input 
+                      placeholder="e.g., What's your favorite color?" 
+                      {...field} 
+                      required={true}
+                    />
+                  </FormControl>
+                  <p className="text-xs text-gray-500">The question or prompt to display to users</p>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+          )}
+
+          {/* Form fields for filter-based stickers */}
+          {isFilterBased(definition) && definition.params.map((param) => (
             <FormField
               key={param.key}
               control={form.control}
@@ -333,10 +463,28 @@ export function EnhancedStickerParamModal({
             <h3 className="text-sm font-medium mb-2">Preview</h3>
               
             <div className="flex items-center justify-center">
-              {hasPreviewData ? (
+              {hasPreviewData || (isMethodBased(definition) && watchedValues.promptText) ? (
                 <div className="w-full max-w-[250px]">
+                  {/* Special handling for prompt stickers */}
+                  {isMethodBased(definition) && stickerId === 'prompt' && watchedValues.promptText && (
+                    <div className="bg-white rounded-lg shadow-sm p-4 overflow-hidden">
+                      <GenericSticker
+                        stickerType={stickerId}
+                        filter={{}}
+                        accessors={[]}
+                        scaleFactor={1}
+                        associatedData={{ promptText: watchedValues.promptText }}
+                        methods={previewMethods}
+                        // Pass placeholder values for prompt stickers
+                        eventId="placeholder-event-id"
+                        pubkey="placeholder-pubkey"
+                        eventKind={31337}
+                      />
+                    </div>
+                  )}
+                  
                   {/* Special handling for blossom stickers since their events aren't published yet */}
-                  {stickerId === 'blossom' && watchedValues.url && (
+                  {isFilterBased(definition) && stickerId === 'blossom' && watchedValues.url && (
                     <div className="bg-white rounded-lg shadow-sm p-4 overflow-hidden">
                       {extractHashFromUrl(watchedValues.url) ? (
                         <GenericSticker
@@ -355,7 +503,7 @@ export function EnhancedStickerParamModal({
                   )}
                   
                   {/* For mention, note, and product stickers, use GenericSticker directly */}
-                  {(stickerId === 'mention' || stickerId === 'note' || stickerId === 'product') && (
+                  {isFilterBased(definition) && (stickerId === 'mention' || stickerId === 'note' || stickerId === 'product') && (
                     <GenericSticker
                       stickerType={stickerId}
                       filter={previewFilter}

@@ -166,7 +166,18 @@ function RouteComponent() {
     stickerType: string, 
     filter: any, 
     accessors: string[],
-    associatedData?: Record<string, any>
+    associatedData?: Record<string, any>,
+    methods?: { 
+      [key: string]: {
+        description: string;
+        eventTemplate: {
+          kind: number;
+          tags?: string[][];
+          content?: string;
+          [key: string]: any;
+        };
+      } 
+    }
   ) => {
     // Create a new sticker element with all data
     const sticker: any = {
@@ -187,7 +198,8 @@ function RouteComponent() {
       accessors, 
       540, 
       960,
-      associatedData
+      associatedData,
+      methods
     );
   };
 
