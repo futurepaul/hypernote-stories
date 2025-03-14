@@ -141,6 +141,48 @@ function HypernoteView({ hypernote }) {
     });
   };
 
+  // Create a comment author component that fetches and displays author info
+  const CommentAuthor = ({ pubkey, createdAt }) => {
+    const authorQuery = useQuery(authorQueryOptions(pubkey));
+    
+    if (authorQuery.isLoading) {
+      return <span className="text-sm font-medium">{pubkey.substring(0, 8)}...</span>;
+    }
+    
+    if (authorQuery.isError) {
+      return <span className="text-sm font-medium">{pubkey.substring(0, 8)}...</span>;
+    }
+    
+    const author = authorQuery.data;
+    
+    return (
+      <div className="flex items-center gap-2 mb-2">
+        {author.picture ? (
+          <img 
+            src={author.picture} 
+            alt={author.name || "Author"} 
+            className="w-8 h-8 rounded-full object-cover"
+            onError={(e) => {
+              e.currentTarget.src = "https://via.placeholder.com/150?text=?";
+            }}
+          />
+        ) : (
+          <div className="w-8 h-8 rounded-full bg-purple-100 flex items-center justify-center">
+            <MessageSquareQuote className="w-4 h-4 text-purple-500" />
+          </div>
+        )}
+        <div>
+          <span className="text-sm font-medium">
+            {author.name || pubkey.substring(0, 8) + '...'}
+          </span>
+          <span className="text-xs text-gray-500 ml-2">
+            {new Date(createdAt * 1000).toLocaleString()}
+          </span>
+        </div>
+      </div>
+    );
+  };
+
   // Render the right side buttons (share/like)
   const rightContent = (
     <div className="h-screen w-full flex flex-col self-end justify-between pointer-events-none">
@@ -242,25 +284,16 @@ function HypernoteView({ hypernote }) {
             ) : commentsQuery.data?.length === 0 ? (
               <p className="text-gray-500 text-sm">No comments yet</p>
             ) : (
-              <div className="space-y-4">
-                {commentsQuery.data.map(comment => (
-                  <div key={comment.id} className="p-3 bg-gray-50 rounded border border-gray-200">
-                    <div className="flex items-start gap-2 mb-2">
-                      <div className="w-8 h-8 rounded-full bg-purple-100 flex items-center justify-center">
-                        <MessageSquareQuote className="w-4 h-4 text-purple-500" />
-                      </div>
-                      <div>
-                        <span className="text-sm font-medium">
-                          {comment.pubkey.substring(0, 8)}...
-                        </span>
-                        <span className="text-xs text-gray-500 ml-2">
-                          {new Date(comment.created_at * 1000).toLocaleString()}
-                        </span>
-                      </div>
+              <div className="space-y-4 max-h-[400px] overflow-y-auto pr-2">
+                {commentsQuery.data
+                  .slice() // Create a copy to avoid mutating the original array
+                  .sort((a, b) => b.created_at - a.created_at) // Sort by newest first
+                  .map(comment => (
+                    <div key={comment.id} className="p-3 bg-gray-50 rounded border border-gray-200">
+                      <CommentAuthor pubkey={comment.pubkey} createdAt={comment.created_at} />
+                      <p className="text-sm ml-10 mt-2">{comment.content}</p>
                     </div>
-                    <p className="text-sm ml-10">{comment.content}</p>
-                  </div>
-                ))}
+                  ))}
               </div>
             )}
           </div>
