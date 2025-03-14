@@ -1,5 +1,5 @@
-import { useState, useContext } from "react";
-import { AtSign, StickyNote, Loader2, Flower, Download, ShoppingBag, MessageSquareQuote, Check } from "lucide-react";
+import { useState, useContext, useEffect, useRef } from "react";
+import { AtSign, StickyNote, Loader2, Flower, Download, ShoppingBag, MessageSquareQuote, Check, Timer } from "lucide-react";
 import { useNostrProfileQuery, useNostrNoteQuery, useNostrFileMetadataQuery, useCommentsQuery } from "@/queries/nostr";
 // @ts-ignore
 import fileIcon from "@/assets/file.png";
@@ -17,7 +17,7 @@ interface GenericStickerProps {
   accessors: string[];
   stickerType: string;
   scaleFactor: number;
-  associatedData?: { displayFilename?: string; promptText?: string };
+  associatedData?: { displayFilename?: string; promptText?: string; duration?: string };
   methods?: { 
     [key: string]: {
       description?: string;
@@ -29,6 +29,10 @@ interface GenericStickerProps {
       };
     } 
   };
+  // Optional props for specific sticker types
+  eventId?: string;
+  pubkey?: string;
+  eventKind?: number;
 }
 
 // New component for prompt stickers
@@ -216,13 +220,116 @@ const PromptSticker: React.FC<{
   );
 };
 
+// Countdown Sticker component
+const CountdownSticker: React.FC<{
+  created_at: number;
+  duration: number;
+}> = ({ created_at, duration }) => {
+  const [timeLeft, setTimeLeft] = useState<number | null>(null);
+  const intervalRef = useRef<number | null>(null);
+
+  // Format time function
+  const formatTime = (seconds: number): string => {
+    if (seconds <= 0) return "Expired";
+
+    const days = Math.floor(seconds / (3600 * 24));
+    const hours = Math.floor((seconds % (3600 * 24)) / 3600);
+    const minutes = Math.floor((seconds % 3600) / 60);
+    const remainingSeconds = seconds % 60;
+
+    if (days > 0) {
+      return `${days}d ${hours}h ${minutes}m ${remainingSeconds}s`;
+    } else if (hours > 0) {
+      return `${hours}h ${minutes}m ${remainingSeconds}s`;
+    } else if (minutes > 0) {
+      return `${minutes}m ${remainingSeconds}s`;
+    } else {
+      return `${remainingSeconds}s`;
+    }
+  };
+
+  // Calculate the end time once
+  const startTime = created_at * 1000; // Convert UNIX timestamp to milliseconds
+  const endTime = startTime + (duration * 1000);
+  const endTimeFormatted = new Date(endTime).toLocaleString();
+
+  useEffect(() => {
+    // Calculate initial time remaining - use the endTime defined outside
+    
+    const updateTimer = () => {
+      const now = Date.now();
+      const remaining = Math.floor((endTime - now) / 1000);
+      
+      if (remaining <= 0) {
+        setTimeLeft(0);
+        if (intervalRef.current) {
+          clearInterval(intervalRef.current);
+          intervalRef.current = null;
+        }
+      } else {
+        setTimeLeft(remaining);
+      }
+    };
+
+    // Initial update
+    updateTimer();
+    
+    // Set up interval
+    intervalRef.current = window.setInterval(updateTimer, 1000);
+    
+    // Cleanup function
+    return () => {
+      if (intervalRef.current) {
+        clearInterval(intervalRef.current);
+        intervalRef.current = null;
+      }
+    };
+  }, [created_at, duration, endTime]);
+
+  // Loading state
+  if (timeLeft === null) {
+    return (
+      <div className="bg-white rounded-lg shadow-sm p-4 overflow-hidden">
+        <div className="flex justify-center items-center py-4">
+          <Loader2 className="w-6 h-6 text-gray-400 animate-spin" />
+          <span className="ml-2 text-sm text-gray-500">Calculating time...</span>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="bg-white rounded-lg shadow-sm overflow-hidden">
+      <div className="rounded-lg bg-blue-100 px-3 py-1.5 inline-flex items-center gap-1.5 m-2">
+        <Timer className="w-4 h-4 text-blue-700" />
+        <span className="text-sm font-semibold text-blue-800">
+          Countdown
+        </span>
+      </div>
+      
+      <div className="p-4 pt-2 flex flex-col items-center">
+        <div className={`text-xl font-mono font-bold ${timeLeft === 0 ? 'text-red-500' : 'text-blue-600'}`}>
+          {formatTime(timeLeft)}
+        </div>
+        <div className="text-xs text-gray-500 mt-2 text-center">
+          <div>Started: {new Date(created_at * 1000).toLocaleString()}</div>
+          <div>Expires: {endTimeFormatted}</div>
+        </div>
+      </div>
+    </div>
+  );
+};
+
 export const GenericSticker: React.FC<GenericStickerProps> = ({
   filter,
   accessors,
   stickerType,
   scaleFactor,
   associatedData,
-  methods
+  methods,
+  eventId,
+  pubkey,
+  eventKind
 }) => {
   // Access hypernote context
   const hypernoteContext = useContext(HypernoteContext);
@@ -232,48 +339,78 @@ export const GenericSticker: React.FC<GenericStickerProps> = ({
     return (
       <PromptSticker 
         promptText={associatedData.promptText}
-        eventId={hypernoteContext?.hypernoteId}
-        eventKind={hypernoteContext?.hypernoteKind}
-        pubkey={hypernoteContext?.hypernotePubkey}
+        eventId={eventId || hypernoteContext?.hypernoteId}
+        eventKind={eventKind || hypernoteContext?.hypernoteKind}
+        pubkey={pubkey || hypernoteContext?.hypernotePubkey}
         methods={methods}
+      />
+    );
+  }
+  
+  // Render a Countdown sticker (no data fetching needed)
+  if (stickerType === 'countdown') {
+    // Get the timestamp from hypernote context, or fall back to current time only for preview
+    const created_at = hypernoteContext?.hypernoteCreatedAt || Math.floor(Date.now() / 1000);
+    // Use duration from associatedData or default to 60 seconds if missing
+    const duration = associatedData?.duration ? parseInt(associatedData.duration, 10) : 60;
+
+    console.log("[Debug Countdown] Using creation time:", new Date(created_at * 1000).toLocaleString(), 
+      "Duration:", duration, "associatedData:", associatedData);
+
+    return (
+      <CountdownSticker
+        created_at={created_at}
+        duration={duration}
       />
     );
   }
   
   // Use the appropriate query hook based on sticker type
   const profileQuery = useNostrProfileQuery(
-    stickerType === 'mention' ? filter : { kinds: [0], authors: ['invalid'] },
-    { enabled: stickerType === 'mention' }
+    stickerType === 'mention' ? { kinds: [0], authors: filter.authors } : { kinds: [0], limit: 0 },
+    { enabled: stickerType === 'mention' && !!filter.authors && filter.authors.length > 0 }
   );
   
   const noteQuery = useNostrNoteQuery(
-    stickerType === 'note' ? filter : { kinds: [1], ids: ['invalid'] },
-    { enabled: stickerType === 'note' }
-  );
-
-  const productQuery = useNostrEventQuery(
-    stickerType === 'product' ? filter : { kinds: [30402], ids: ['invalid'] },
-    { enabled: stickerType === 'product' }
+    stickerType === 'note' ? { kinds: [1], ids: filter.ids } : { kinds: [1], limit: 0 },
+    { enabled: stickerType === 'note' && !!filter.ids && filter.ids.length > 0 }
   );
   
   const fileMetadataQuery = useNostrFileMetadataQuery(
-    stickerType === 'blossom' ? filter : { kinds: [1063], '#x': ['invalid'] },
-    { enabled: stickerType === 'blossom' }
+    stickerType === 'blossom' ? { kinds: [1063], '#x': filter['#x'] } : { kinds: [1063], limit: 0 },
+    { enabled: stickerType === 'blossom' && !!filter['#x'] && filter['#x'].length > 0 }
   );
   
-  // Determine loading state
-  const isLoading = 
+  // Generic event query for other types (like product listings)
+  const eventQuery = useNostrEventQuery(
+    (stickerType === 'product' || stickerType === 'countdown') ? filter : { kinds: [1], limit: 0 },
+    { enabled: (stickerType === 'product' || stickerType === 'countdown') && Object.keys(filter).length > 0 }
+  );
+  
+  // Calculate if we're in a loading state
+  const isLoading = (
     (stickerType === 'mention' && profileQuery.isLoading) ||
     (stickerType === 'note' && noteQuery.isLoading) ||
-    (stickerType === 'product' && productQuery.isLoading) ||
-    (stickerType === 'blossom' && fileMetadataQuery.isLoading);
+    (stickerType === 'blossom' && fileMetadataQuery.isLoading) ||
+    (stickerType === 'product' && eventQuery.isLoading) ||
+    (stickerType === 'countdown' && eventQuery.isLoading)
+  );
   
-  // Determine error state
-  const error = 
+  // Calculate if we have an error
+  const error = (
     (stickerType === 'mention' && profileQuery.error) ||
     (stickerType === 'note' && noteQuery.error) ||
-    (stickerType === 'product' && productQuery.error) ||
-    (stickerType === 'blossom' && fileMetadataQuery.error);
+    (stickerType === 'blossom' && fileMetadataQuery.error) ||
+    (stickerType === 'product' && eventQuery.error) ||
+    (stickerType === 'countdown' && eventQuery.error)
+  );
+  
+  // Get event data based on type for access to fields like created_at
+  const eventData = (
+    (stickerType === 'product' && eventQuery.data) ||
+    (stickerType === 'countdown' && eventQuery.data) ||
+    null
+  );
   
   // Render loading state
   if (isLoading) {
@@ -393,8 +530,8 @@ export const GenericSticker: React.FC<GenericStickerProps> = ({
   }
 
   // Render a Product sticker
-  if (stickerType === 'product' && productQuery.data) {
-    const product = productQuery.data;
+  if (stickerType === 'product' && eventQuery.data) {
+    const product = eventQuery.data;
     
     // Extract product information from tags
     const getTagValue = (tagName: string): string | null => {

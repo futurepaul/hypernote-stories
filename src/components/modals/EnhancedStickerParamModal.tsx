@@ -5,7 +5,7 @@ import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import * as z from "zod";
-import { AtSign, StickyNote, File as FileIcon, Flower, Loader2, ShoppingBag, MessageSquareQuote } from "lucide-react";
+import { AtSign, StickyNote, File as FileIcon, Flower, Loader2, ShoppingBag, MessageSquareQuote, Timer } from "lucide-react";
 import { stickerDefinitions } from "./StickerModal";
 import type { StickerParam, FilterBasedSticker, MethodBasedSticker } from "./StickerModal";
 import { decodeNostrId, publishFileMetadata, extractHashFromUrl } from "@/lib/nostr";
@@ -25,6 +25,8 @@ const StickerIcon = ({ stickerType }: { stickerType: string }) => {
       return <ShoppingBag className="h-5 w-5 text-purple-600" />;
     case 'blossom':
       return <Flower className="h-5 w-5 text-green-600" />;
+    case 'countdown':
+      return <Timer className="h-5 w-5 text-blue-600" />;
     default:
       return <StickyNote className="h-5 w-5" />;
   }
@@ -92,9 +94,19 @@ export function EnhancedStickerParamModal({
       definition.params.forEach(param => {
         const isRequired = param.required !== false;
         const baseField = z.string();
-        schemaFields[param.key] = isRequired ? 
-          baseField.min(1, { message: `${param.label} is required` }) : 
-          baseField.optional();
+        
+        // Special handling for the countdown duration field
+        if (stickerId === 'countdown' && param.key === 'duration') {
+          schemaFields[param.key] = isRequired ?
+            baseField
+              .min(1, { message: `${param.label} is required` })
+              .refine(val => !isNaN(parseInt(val)), { message: "Duration must be a number" }) :
+            baseField.optional();
+        } else {
+          schemaFields[param.key] = isRequired ? 
+            baseField.min(1, { message: `${param.label} is required` }) : 
+            baseField.optional();
+        }
       });
     }
     
@@ -272,6 +284,21 @@ export function EnhancedStickerParamModal({
           processedParams[param.key] = processedValue;
         }
         
+        // Special handling for countdown stickers
+        if (stickerId === 'countdown') {
+          console.log("[Debug Countdown] Creating countdown sticker with duration:", values.duration);
+          const filter = definition.filterTemplate(""); // Empty filter
+          const associatedData = {
+            duration: values.duration
+          };
+          
+          console.log("[Debug Countdown] Final sticker data:", { filter, accessors: definition.accessors, associatedData });
+          
+          onAdd(stickerId, filter, definition.accessors, associatedData);
+          onClose();
+          return;
+        }
+        
         // Special handling for blossom stickers - publish file metadata
         if (stickerId === 'blossom') {
           const url = processedParams.url;
@@ -439,6 +466,7 @@ export function EnhancedStickerParamModal({
                       {param.key === 'id' && stickerId === 'product' && <ShoppingBag className="w-4 h-4 text-purple-600" />}
                       {param.key === 'url' && <Flower className="w-4 h-4 text-green-600" />}
                       {param.key === 'filename' && <FileIcon className="w-4 h-4 text-gray-600" />}
+                      {param.key === 'duration' && stickerId === 'countdown' && <Timer className="w-4 h-4 text-blue-600" />}
                       <span>{param.label}</span>
                     </span>
                   </FormLabel>
@@ -447,6 +475,8 @@ export function EnhancedStickerParamModal({
                       placeholder={param.placeholder} 
                       {...field} 
                       required={param.required !== false}
+                      type={param.key === 'duration' && stickerId === 'countdown' ? 'number' : 'text'}
+                      min={param.key === 'duration' && stickerId === 'countdown' ? '1' : undefined}
                     />
                   </FormControl>
                   {param.helpText && (
@@ -499,6 +529,19 @@ export function EnhancedStickerParamModal({
                           Could not extract hash from URL
                         </div>
                       )}
+                    </div>
+                  )}
+                  
+                  {/* Preview section for countdown sticker */}
+                  {isFilterBased(definition) && stickerId === 'countdown' && watchedValues.duration && (
+                    <div className="bg-white rounded-lg shadow-sm p-4 overflow-hidden">
+                      <GenericSticker
+                        stickerType={stickerId}
+                        filter={{}} // Empty filter as we don't need to query
+                        accessors={[]}
+                        scaleFactor={1}
+                        associatedData={{ duration: watchedValues.duration }}
+                      />
                     </div>
                   )}
                   

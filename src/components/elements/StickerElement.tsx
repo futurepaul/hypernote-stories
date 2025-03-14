@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { AtSign, StickyNote, Loader2, Trash2, Download, Flower, MessageSquareQuote, Check } from "lucide-react";
+import { AtSign, StickyNote, Loader2, Trash2, Download, Flower, MessageSquareQuote, Check, Timer } from "lucide-react";
 import type { StickerElement as StickerElementType } from "@/stores/editorStore";
 import { fetchProfile, fetchNote, type NostrProfile } from "@/lib/nostr";
 import { GenericSticker } from "@/components/elements/GenericSticker";
@@ -49,6 +49,14 @@ export function StickerElement({
   startDrag,
   handleDeleteElement,
 }: StickerElementProps) {
+  // Debug the sticker element
+  useEffect(() => {
+    if (element.type === 'sticker' && element.stickerType === 'countdown') {
+      console.log("[Debug StickerElement] Rendering countdown sticker:", 
+        { id: element.id, associatedData: element.associatedData });
+    }
+  }, [element]);
+
   // Apply scaling multiplier (2x) for the entire component
   const scalingMultiplier = 0.5; // Scale down half as much
   const adjustedScaleFactor = 1 - ((1 - scaleFactor) * scalingMultiplier);
@@ -65,6 +73,8 @@ export function StickerElement({
     baseWidth = 390; // Product stickers - width that works with the design
   } else if (element.stickerType === 'prompt') {
     baseWidth = 340; // Prompt stickers need space for the text field
+  } else if (element.stickerType === 'countdown') {
+    baseWidth = 260; // Countdown stickers can be narrower
   }
   
   const scaledWidth = Math.max(baseWidth * finalScaleFactor, element.stickerType === 'product' ? 350 : 200);

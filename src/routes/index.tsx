@@ -95,8 +95,24 @@ function HypernoteView({ hypernote }) {
     try {
       // Parse the content JSON
       const parsedContent = JSON.parse(hypernote.content);
+      console.log("[Debug Elements]", parsedContent);
       if (parsedContent.elements && Array.isArray(parsedContent.elements)) {
-        setElements(parsedContent.elements);
+        // Check for incomplete countdown stickers and fix them
+        const fixedElements = parsedContent.elements.map(element => {
+          if (element.type === 'sticker' && element.stickerType === 'countdown' && 
+              (!element.associatedData || !element.associatedData.duration)) {
+            console.log("[Debug] Found countdown sticker with missing duration, adding default", element);
+            return {
+              ...element,
+              associatedData: {
+                ...element.associatedData,
+                duration: "60" // Default to 60 seconds
+              }
+            };
+          }
+          return element;
+        });
+        setElements(fixedElements);
       }
     } catch (error) {
       console.error("Error parsing hypernote content:", error);
@@ -313,6 +329,7 @@ function HypernoteView({ hypernote }) {
             hypernoteId={hypernote.id}
             hypernoteKind={30078} // hypernote kind
             hypernotePubkey={hypernote.author}
+            hypernoteCreatedAt={hypernote.createdAt}
           />
         </div>
       }

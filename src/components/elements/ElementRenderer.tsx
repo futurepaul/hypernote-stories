@@ -17,6 +17,7 @@ export const HypernoteContext = createContext<{
   hypernoteId?: string;
   hypernoteKind?: number;
   hypernotePubkey?: string;
+  hypernoteCreatedAt?: number;
 } | null>(null);
 
 interface ElementRendererProps {
@@ -33,6 +34,7 @@ interface ElementRendererProps {
   hypernoteId?: string;
   hypernoteKind?: number;
   hypernotePubkey?: string;
+  hypernoteCreatedAt?: number;
 }
 
 export function ElementRenderer({
@@ -49,6 +51,7 @@ export function ElementRenderer({
   hypernoteId,
   hypernoteKind = 31337, // Default to hypernote kind
   hypernotePubkey,
+  hypernoteCreatedAt,
 }: ElementRendererProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const [scaleFactor, setScaleFactor] = useState(1);
@@ -84,7 +87,7 @@ export function ElementRenderer({
 
   return (
     <HypernoteContext.Provider 
-      value={{ hypernoteId, hypernoteKind, hypernotePubkey }}
+      value={{ hypernoteId, hypernoteKind, hypernotePubkey, hypernoteCreatedAt }}
     >
       <div
         ref={containerRef}

@@ -1,4 +1,4 @@
-import { X, AtSign, StickyNote, Bot, Zap, Flower, ShoppingBag, MessageSquareQuote } from "lucide-react";
+import { X, AtSign, StickyNote, Bot, Zap, Flower, ShoppingBag, MessageSquareQuote, Timer } from "lucide-react";
 import { useEditorStore } from "@/stores/editorStore";
 import { cn } from "@/lib/utils";
 import { BaseModal } from "@/components/ui/base-modal";
@@ -35,6 +35,11 @@ const stickers: Sticker[] = [
     id: "product",
     name: "Product",
     icon: <ShoppingBag className="w-6 h-6" />,
+  },
+  {
+    id: "countdown",
+    name: "Countdown",
+    icon: <Timer className="w-6 h-6" />,
   },
   {
     id: "dvmcp",
@@ -199,6 +204,22 @@ export const stickerDefinitions: (FilterBasedSticker | MethodBasedSticker)[] = [
         placeholder: "e.g. my_image.png",
         helpText: "Custom filename for display purposes",
         required: false
+      }
+    ] as StickerParam[]
+  },
+  {
+    id: "countdown",
+    name: "Countdown",
+    icon: <Timer className="w-6 h-6" />,
+    filterTemplate: (_unused: string) => ({}), // Empty filter as we don't query the network
+    accessors: [], // No accessors needed
+    params: [
+      {
+        key: "duration",
+        label: "Duration (seconds)",
+        placeholder: "e.g. 3600 for 1 hour",
+        helpText: "Enter the countdown duration in seconds",
+        required: true
       }
     ] as StickerParam[]
   }
