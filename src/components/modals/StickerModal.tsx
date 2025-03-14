@@ -35,6 +35,44 @@ const stickers: Sticker[] = [
   },
 ];
 
+// This defines the sticker filter templates and accessors
+export const stickerDefinitions = {
+  mention: {
+    name: "Mention",
+    filterTemplate: (pubkey: string) => ({ 
+      kinds: [0], 
+      authors: [pubkey], 
+      limit: 1 
+    }),
+    accessors: ["content", "name", "picture", "nip05", "about"],
+    params: [
+      {
+        key: "pubkey",
+        label: "Nostr Public Key",
+        placeholder: "Hex pubkey or npub...",
+        helpText: "Enter a valid npub1... or hex public key",
+      }
+    ]
+  },
+  note: {
+    name: "Note",
+    filterTemplate: (id: string) => ({ 
+      kinds: [1], 
+      ids: [id], 
+      limit: 1 
+    }),
+    accessors: ["content", "pubkey", "created_at"],
+    params: [
+      {
+        key: "id",
+        label: "Note ID",
+        placeholder: "Hex ID or note1/nevent1...",
+        helpText: "Enter a note1/nevent1 ID or 64-character hex event ID",
+      }
+    ]
+  }
+};
+
 export function StickerModal() {
   const isStickerModalOpen = useEditorStore((state) => state.editorState.isStickerModalOpen);
   const closeStickerModal = useEditorStore((state) => state.closeStickerModal);

@@ -20,10 +20,17 @@ export interface TextElement extends BaseElement {
 
 export interface StickerElement extends BaseElement {
   type: 'sticker'
-  stickerId: string
-  params: {
-    [key: string]: string // Generic key-value store for parameters
-  }
+  stickerType: string // Type identifier (mention, note, etc.)
+  filter: {
+    kinds?: number[]
+    authors?: string[]
+    ids?: string[]
+    '#e'?: string[] // event references
+    '#p'?: string[] // profile references
+    // other potential filter fields
+    limit?: number
+  } // This matches NDKFilter structure
+  accessors: string[] // Fields to extract from the event
 }
 
 export interface ImageElement extends BaseElement {
@@ -69,7 +76,14 @@ interface EditorStore {
   
   // Element operations
   addTextElement: (text: string, x: number, y: number) => void
-  addStickerElement: (stickerId: string, params: {[key: string]: string}, x: number, y: number) => void
+  addStickerElement: (stickerType: string, filter: {
+    kinds?: number[];
+    authors?: string[];
+    ids?: string[];
+    '#e'?: string[];
+    '#p'?: string[];
+    limit?: number;
+  }, accessors: string[], x: number, y: number) => void
   addImageElement: (imageUrl: string, x: number, y: number) => void
   addVideoElement: (videoUrl: string, x: number, y: number) => void
   addFileElement: (fileUrl: string, fileName: string, x: number, y: number) => void
@@ -142,7 +156,14 @@ export const useEditorStore = create<EditorStore>((set, get) => ({
     get().selectElement(id);
   },
 
-  addStickerElement: (stickerId: string, params: {[key: string]: string}, x: number, y: number) => {
+  addStickerElement: (stickerType: string, filter: {
+    kinds?: number[];
+    authors?: string[];
+    ids?: string[];
+    '#e'?: string[];
+    '#p'?: string[];
+    limit?: number;
+  }, accessors: string[], x: number, y: number) => {
     const id = uuidv4();
     set((state) => ({
       elements: [
@@ -150,8 +171,9 @@ export const useEditorStore = create<EditorStore>((set, get) => ({
         {
           id,
           type: 'sticker',
-          stickerId,
-          params,
+          stickerType,
+          filter,
+          accessors,
           x,
           y,
         },

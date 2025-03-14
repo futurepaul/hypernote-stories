@@ -1,73 +1,96 @@
 import { useState, useEffect } from "react";
 import { AtSign, StickyNote, Loader2, Trash2 } from "lucide-react";
 import type { StickerElement as StickerElementType } from "@/stores/editorStore";
-import { decodeNostrId, fetchProfile, fetchNote, type NostrProfile, type NostrNote } from "@/lib/nostr";
+import { fetchProfile, fetchNote, type NostrProfile, type NostrNote } from "@/lib/nostr";
 
-interface MentionStickerProps {
-  params: Record<string, string>;
+// Generic sticker component that handles data fetching based on filter
+interface GenericStickerProps {
+  filter: Record<string, any>;
+  accessors: string[];
+  stickerType: string;
   scaleFactor: number;
 }
 
-const MentionSticker: React.FC<MentionStickerProps> = ({ params, scaleFactor }) => {
-  const [profile, setProfile] = useState<NostrProfile | null>(null);
+const GenericSticker: React.FC<GenericStickerProps> = ({
+  filter,
+  accessors,
+  stickerType,
+  scaleFactor
+}) => {
+  const [eventData, setEventData] = useState<any | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   
   useEffect(() => {
-    async function loadProfile() {
+    async function fetchData() {
       try {
-        if (!params.npub) {
-          setLoading(false);
-          return;
-        }
-        
         setLoading(true);
-        const decoded = decodeNostrId(params.npub);
-        if (!decoded || decoded.type !== 'npub') {
-          throw new Error('Invalid npub format');
+        
+        // Determine which fetch function to use based on filter/stickerType
+        if (stickerType === 'mention' && filter.authors && filter.kinds?.includes(0)) {
+          // Fetch profile
+          const profileData = await fetchProfile(filter.authors[0]);
+          if (profileData.error) {
+            throw new Error(profileData.error);
+          }
+          setEventData(profileData);
+          
+        } else if (stickerType === 'note' && filter.ids && filter.kinds?.includes(1)) {
+          // Fetch note
+          const noteData = await fetchNote(filter.ids[0]);
+          if (noteData.error) {
+            throw new Error(noteData.error);
+          }
+          setEventData(noteData);
+          
+        } else {
+          throw new Error('Unsupported sticker type or filter');
         }
         
-        const profileData = await fetchProfile(decoded.data);
-        if (profileData.error) {
-          throw new Error(profileData.error);
-        }
-        
-        setProfile(profileData);
         setLoading(false);
       } catch (e) {
-        console.error('Error loading profile:', e);
+        console.error(`Error loading ${stickerType}:`, e);
         setError(e instanceof Error ? e.message : 'Unknown error');
         setLoading(false);
       }
     }
     
-    loadProfile();
-  }, [params.npub]);
+    fetchData();
+  }, [stickerType, JSON.stringify(filter)]);
 
-  // Calculate base width - we'll apply this directly to the component
-  const baseWidth = 260; // in pixels
-
-  return (
-    <div 
-      className="bg-white rounded-lg shadow-sm overflow-hidden" 
-      style={{ width: `${baseWidth}px` }}
-    >
-      <div className="rounded-full bg-blue-100 px-3 py-1.5 inline-flex items-center gap-1.5 m-2">
-        <AtSign className="w-4 h-4 text-blue-500" />
-        <span className="text-sm font-semibold text-blue-700">
-          {params.npub ? params.npub.substring(0, 12) + '...' : 'Mention'}
-        </span>
+  // Render based on sticker type
+  if (loading) {
+    return (
+      <div className="bg-white rounded-lg shadow-sm p-4 overflow-hidden">
+        <div className="flex justify-center items-center py-4">
+          <Loader2 className="w-6 h-6 text-gray-400 animate-spin" />
+          <span className="ml-2 text-sm text-gray-500">Loading data...</span>
+        </div>
       </div>
-      
-      <div className="p-3 pt-0">
-        {loading ? (
-          <div className="flex justify-center items-center py-4">
-            <Loader2 className="w-6 h-6 text-gray-400 animate-spin" />
-            <span className="ml-2 text-sm text-gray-500">Loading profile...</span>
-          </div>
-        ) : error ? (
-          <div className="text-red-500 text-sm py-2 px-1">{error}</div>
-        ) : profile ? (
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="bg-white rounded-lg shadow-sm p-4 overflow-hidden">
+        <div className="text-red-500 text-sm py-2 px-1">{error}</div>
+      </div>
+    );
+  }
+
+  // Render a Mention sticker
+  if (stickerType === 'mention' && eventData) {
+    const profile = eventData as NostrProfile;
+    return (
+      <div className="bg-white rounded-lg shadow-sm overflow-hidden">
+        <div className="rounded-full bg-blue-100 px-3 py-1.5 inline-flex items-center gap-1.5 m-2">
+          <AtSign className="w-4 h-4 text-blue-500" />
+          <span className="text-sm font-semibold text-blue-700">
+            {profile.pubkey ? profile.pubkey.substring(0, 12) + '...' : 'Mention'}
+          </span>
+        </div>
+        
+        <div className="p-3 pt-0">
           <div className="flex flex-col">
             <div className="flex items-center gap-2 mb-2">
               {profile.picture ? (
@@ -96,87 +119,24 @@ const MentionSticker: React.FC<MentionStickerProps> = ({ params, scaleFactor }) 
               <p className="text-sm text-gray-700 overflow-hidden text-ellipsis line-clamp-2">{profile.about}</p>
             )}
           </div>
-        ) : (
-          <div className="text-gray-500 text-sm py-2">No profile data found</div>
-        )}
+        </div>
       </div>
-    </div>
-  );
-};
+    );
+  }
 
-interface NoteStickerProps {
-  params: Record<string, string>;
-  scaleFactor: number;
-}
-
-const NoteSticker: React.FC<NoteStickerProps> = ({ params, scaleFactor }) => {
-  const [note, setNote] = useState<NostrNote | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-  
-  useEffect(() => {
-    async function loadNote() {
-      try {
-        if (!params.noteId) {
-          setLoading(false);
-          return;
-        }
+  // Render a Note sticker
+  if (stickerType === 'note' && eventData) {
+    const note = eventData as NostrNote;
+    return (
+      <div className="bg-white rounded-lg shadow-sm overflow-hidden">
+        <div className="rounded-lg bg-yellow-100 px-3 py-1.5 inline-flex items-center gap-1.5 m-2">
+          <StickyNote className="w-4 h-4 text-yellow-700" />
+          <span className="text-sm font-semibold text-yellow-800">
+            {note.id ? note.id.substring(0, 12) + '...' : 'Note'}
+          </span>
+        </div>
         
-        setLoading(true);
-        
-        // We accept both hex IDs and bech32 encoded IDs (note1, nevent1)
-        let noteId = params.noteId;
-        
-        // Validate that it's a potentially valid ID
-        if (noteId.startsWith('note1') || noteId.startsWith('nevent1')) {
-          // It's a bech32 ID, let the fetchNote function handle decoding
-        } else if (noteId.length === 64 && /^[0-9a-f]+$/i.test(noteId)) {
-          // It's a 64-character hex ID, use as is
-        } else {
-          throw new Error('Invalid note ID format. Should be note1... or a 64-character hex ID.');
-        }
-        
-        const noteData = await fetchNote(noteId);
-        if (noteData.error) {
-          throw new Error(noteData.error);
-        }
-        
-        setNote(noteData);
-        setLoading(false);
-      } catch (e) {
-        console.error('Error loading note:', e);
-        setError(e instanceof Error ? e.message : 'Unknown error');
-        setLoading(false);
-      }
-    }
-    
-    loadNote();
-  }, [params.noteId]);
-
-  // Calculate base width - we'll apply this directly to the component
-  const baseWidth = 320; // in pixels
-
-  return (
-    <div 
-      className="bg-white rounded-lg shadow-sm overflow-hidden" 
-      style={{ width: `${baseWidth}px` }}
-    >
-      <div className="rounded-lg bg-yellow-100 px-3 py-1.5 inline-flex items-center gap-1.5 m-2">
-        <StickyNote className="w-4 h-4 text-yellow-700" />
-        <span className="text-sm font-semibold text-yellow-800">
-          {params.noteId ? params.noteId.substring(0, 12) + '...' : 'Note'}
-        </span>
-      </div>
-      
-      <div className="p-3 pt-0">
-        {loading ? (
-          <div className="flex justify-center items-center py-4">
-            <Loader2 className="w-6 h-6 text-gray-400 animate-spin" />
-            <span className="ml-2 text-sm text-gray-500">Loading note...</span>
-          </div>
-        ) : error ? (
-          <div className="text-red-500 text-sm py-2 px-1">{error}</div>
-        ) : note ? (
+        <div className="p-3 pt-0">
           <div className="flex flex-col">
             {note.authorName && (
               <div className="flex items-center gap-2 mb-2">
@@ -207,17 +167,17 @@ const NoteSticker: React.FC<NoteStickerProps> = ({ params, scaleFactor }) => {
               </div>
             )}
           </div>
-        ) : (
-          <div className="text-gray-500 text-sm py-2">No note data found</div>
-        )}
+        </div>
       </div>
+    );
+  }
+
+  // Fallback if no matching renderer
+  return (
+    <div className="bg-white rounded-lg shadow-sm p-4 overflow-hidden">
+      <div className="text-gray-500 text-sm py-2">Unsupported sticker type</div>
     </div>
   );
-};
-
-const stickerComponents: Record<string, React.FC<{params: Record<string, string>, scaleFactor: number}>> = {
-  mention: MentionSticker,
-  note: NoteSticker,
 };
 
 interface StickerElementProps {
@@ -241,19 +201,13 @@ export function StickerElement({
   startDrag,
   handleDeleteElement,
 }: StickerElementProps) {
-  const StickerComponent = stickerComponents[element.stickerId];
-  
-  if (!StickerComponent) {
-    return null;
-  }
-
   // Apply scaling multiplier (2x) for the entire component
   const scalingMultiplier = 0.5; // Scale down half as much
   const adjustedScaleFactor = 1 - ((1 - scaleFactor) * scalingMultiplier);
   const finalScaleFactor = Math.max(adjustedScaleFactor, 0.7);
 
   // Determine the base width based on sticker type
-  const baseWidth = element.stickerId === 'mention' ? 260 : 320;
+  const baseWidth = element.stickerType === 'mention' ? 260 : 320;
   const scaledWidth = baseWidth * finalScaleFactor;
 
   return (
@@ -278,7 +232,12 @@ export function StickerElement({
       <div className={selected && !isEditingDisabled ? "border-2 border-dashed border-blue-500 rounded-lg p-1" : ""}>
         {/* Scaling container - apply width directly to this element */}
         <div style={{ width: `${scaledWidth}px` }}>
-          <StickerComponent params={element.params} scaleFactor={1} />
+          <GenericSticker 
+            filter={element.filter} 
+            accessors={element.accessors} 
+            stickerType={element.stickerType} 
+            scaleFactor={1} 
+          />
         </div>
       </div>
 

@@ -162,16 +162,14 @@ function RouteComponent() {
   };
 
   // Handle adding a sticker with the provided parameters
-  const handleAddSticker = (params: { [key: string]: string }) => {
-    if (selectedStickerType) {
-      useEditorStore.getState().addStickerElement(selectedStickerType, params, 540, 960);
-    }
+  const handleAddSticker = (stickerType: string, filter: any, accessors: string[]) => {
+    useEditorStore.getState().addStickerElement(stickerType, filter, accessors, 540, 960);
   };
 
-  // Get the sticker name based on its ID
-  const getStickerName = (stickerId: string | null) => {
-    if (stickerId === 'mention') return 'Mention';
-    if (stickerId === 'note') return 'Note';
+  // Get the sticker name based on its type
+  const getStickerName = (stickerType: string | null) => {
+    if (stickerType === 'mention') return 'Mention';
+    if (stickerType === 'note') return 'Note';
     return 'Sticker';
   };
 
