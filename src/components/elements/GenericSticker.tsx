@@ -1,8 +1,7 @@
 import { AtSign, StickyNote, Loader2, Flower, Download } from "lucide-react";
 import { useNostrProfileQuery, useNostrNoteQuery, useNostrFileMetadataQuery } from "@/queries/nostr";
-
-// Simple base64-encoded file icon
-const fileIconBase64 = "data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSIyNCIgaGVpZ2h0PSIyNCIgdmlld0JveD0iMCAwIDI0IDI0IiBmaWxsPSJub25lIiBzdHJva2U9ImN1cnJlbnRDb2xvciIgc3Ryb2tlLXdpZHRoPSIyIiBzdHJva2UtbGluZWNhcD0icm91bmQiIHN0cm9rZS1saW5lam9pbj0icm91bmQiIGNsYXNzPSJsdWNpZGUgbHVjaWRlLWZpbGUiPjxwYXRoIGQ9Ik0xNCAyYTIgMiAwIDAgMSAyIDJ2NGEyIDIgMCAwIDEtMiAyaC00YTIgMiAwIDAgMS0yLTJWNGEyIDIgMCAwIDEgMi0yaHRtbCI+PC9wYXRoPjxwYXRoIGQ9Ik0yIDE3LjVBMi41IDIuNSAwIDAgMSA0LjUgMTVINmEyIDIgMCAwIDEgMiAydjRhMiAyIDAgMCAxLTIgMmgtMS41QTIuNSAyLjUgMCAwIDEgMiAyMC41di0zeiI+PC9wYXRoPjxwYXRoIGQ9Ik0xOCA5SDlhMiAyIDAgMCAwLTIgMnY5YTIgMiAwIDAgMCAyIDJoOWEyIDIgMCAwIDAgMi0yVjExYTIgMiAwIDAgMC0yLTJ6Ij48L3BhdGg+PC9zdmc+";
+// @ts-ignore
+import fileIcon from "@/assets/file.png";
 
 // Generic sticker component that handles data fetching based on filter
 interface GenericStickerProps {
@@ -186,20 +185,25 @@ export const GenericSticker: React.FC<GenericStickerProps> = ({
               className="w-8 h-8 object-cover rounded"
               onError={(e) => {
                 // Fall back to default file icon on error
-                (e.target as HTMLImageElement).src = fileIconBase64;
+                (e.target as HTMLImageElement).src = fileIcon;
               }}
             />
           ) : (
-            <img src={fileIconBase64} alt="File" className="w-8 h-8" />
+            <img src={fileIcon} alt="File" className="w-8 h-8" />
           )}
           <div className="flex-1 min-w-0">
             <p className="text-sm font-medium text-gray-900 truncate">
               {associatedData?.displayFilename || file.filename || "unknown.file"}
             </p>
+            {file.created_at > 0 && (
+              <p className="text-xs text-gray-500 mt-1">
+                {new Date(file.created_at * 1000).toLocaleString()}
+              </p>
+            )}
           </div>
         </div>
         
-        <div className="flex justify-between items-center">
+        <div className="flex justify-end">
           <button
             onClick={() => file.url && window.open(file.url, '_blank')}
             className="flex items-center gap-1 text-sm text-blue-600 hover:text-blue-700"
@@ -208,12 +212,6 @@ export const GenericSticker: React.FC<GenericStickerProps> = ({
             <Download size={16} />
             Download
           </button>
-          
-          {file.created_at > 0 && (
-            <div className="text-xs text-gray-500">
-              {new Date(file.created_at * 1000).toLocaleString()}
-            </div>
-          )}
         </div>
       </div>
     );

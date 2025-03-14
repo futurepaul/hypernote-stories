@@ -9,6 +9,7 @@ const DEFAULT_RELAYS = [
   "wss://nos.lol",
   "wss://eden.nostr.land",
   "wss://140.f7z.io",
+  "ws://localhost:10547"
 ];
 
 class NostrService {

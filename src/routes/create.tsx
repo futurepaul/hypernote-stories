@@ -19,7 +19,7 @@ import { ImageUrlModal } from "@/components/modals/ImageUrlModal";
 import { VideoUrlModal } from "@/components/modals/VideoUrlModal";
 import { FileUrlModal } from "@/components/modals/FileUrlModal";
 import { StickerModal } from "@/components/modals/StickerModal";
-import { StickerParamModal } from "@/components/modals/StickerParamModal";
+import { EnhancedStickerParamModal } from "@/components/modals/EnhancedStickerParamModal";
 import { DebugPanel } from "@/components/DebugPanel";
 import type { 
   TextElement, 
@@ -327,7 +327,7 @@ function RouteComponent() {
 
       {/* Sticker Parameter Modal */}
       {selectedStickerType && (
-        <StickerParamModal
+        <EnhancedStickerParamModal
           stickerId={selectedStickerType}
           stickerName={getStickerName(selectedStickerType)}
           isOpen={isStickerParamModalOpen}
