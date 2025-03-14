@@ -1,7 +1,7 @@
-import { createPortal } from "react-dom";
-import { X, AtSign, StickyNote, Bot, Zap, Flower } from "lucide-react";
+import { X, AtSign, StickyNote, Bot, Zap, Flower, ShoppingBag } from "lucide-react";
 import { useEditorStore } from "@/stores/editorStore";
 import { cn } from "@/lib/utils";
+import { BaseModal } from "@/components/ui/base-modal";
 
 interface Sticker {
   id: string;
@@ -25,6 +25,11 @@ const stickers: Sticker[] = [
     id: "blossom",
     name: "Blossom",
     icon: <Flower className="w-6 h-6" />,
+  },
+  {
+    id: "product",
+    name: "Product",
+    icon: <ShoppingBag className="w-6 h-6" />,
   },
   {
     id: "dvmcp",
@@ -87,11 +92,29 @@ export const stickerDefinitions = {
       }
     ] as StickerParam[]
   },
+  product: {
+    name: "Product",
+    filterTemplate: (id: string, _unused?: string) => ({
+      kinds: [30402],
+      ids: [id],
+      limit: 1
+    }),
+    accessors: ["content", "pubkey", "created_at", "tags"],
+    params: [
+      {
+        key: "id",
+        label: "Product Event ID",
+        placeholder: "Hex ID or nevent1...",
+        helpText: "Enter a product event ID (kind 30402)",
+        required: true
+      }
+    ] as StickerParam[]
+  },
   blossom: {
     name: "Blossom",
     filterTemplate: (hash: string, filename: string) => ({ 
       kinds: [1063], 
-      "#x": [hash],
+      '#x': [hash],
       limit: 1 
     }),
     accessors: ["url", "thumb", "filename", "pubkey", "created_at"],
@@ -119,56 +142,51 @@ export function StickerModal() {
   const closeStickerModal = useEditorStore((state) => state.closeStickerModal);
   const openStickerParamModal = useEditorStore((state) => state.openStickerParamModal);
 
-  if (!isStickerModalOpen) return null;
-
   const handleStickerSelect = (stickerId: string) => {
     openStickerParamModal(stickerId);
   };
 
-  const modalContent = (
-    <div className="fixed inset-0 bg-black/30 flex items-center justify-center" style={{ zIndex: 300}}>
-      <div className="bg-white rounded-md p-4 shadow-lg w-full max-w-md relative" style={{ zIndex: 310 }}>
-        <div className="flex justify-between items-center mb-4">
-          <h3 className="font-bold">Add Sticker</h3>
-          <button onClick={closeStickerModal} className="p-1 hover:bg-gray-100 rounded">
-            <X size={18} />
-          </button>
-        </div>
-
-        <div className="grid grid-cols-2 gap-4 mb-4">
-          {stickers.map((sticker) => (
-            <button
-              key={sticker.id}
-              disabled={sticker.disabled}
-              className={cn(
-                "group rounded-xl",
-                sticker.disabled ? "cursor-not-allowed opacity-50" : "hover:bg-gray-50"
-              )}
-              onClick={() => {
-                if (!sticker.disabled) {
-                  handleStickerSelect(sticker.id);
-                }
-              }}
-            >
-              <div className="flex gap-2 items-center p-4 border border-gray-200 rounded-xl">
-                <div>
-                  {sticker.icon}
-                </div>
-                <span className="text-sm font-bold">{sticker.name}</span>
-              </div>
-            </button>
-          ))}
-        </div>
-
-        <button
-          disabled
-          className="w-full px-3 py-2 bg-blue-500 text-white rounded-md hover:bg-blue-600 disabled:opacity-50 disabled:cursor-not-allowed"
-        >
-          Create Your Own
-        </button>
-      </div>
-    </div>
+  // Footer with Create Your Own button (disabled for now)
+  const modalFooter = (
+    <button
+      disabled
+      className="w-full px-3 py-2 bg-blue-500 text-white rounded-md hover:bg-blue-600 disabled:opacity-50 disabled:cursor-not-allowed"
+    >
+      Create Your Own
+    </button>
   );
 
-  return createPortal(modalContent, document.body);
+  return (
+    <BaseModal
+      title="Add Sticker"
+      isOpen={isStickerModalOpen}
+      onClose={closeStickerModal}
+      footer={modalFooter}
+    >
+      <div className="grid grid-cols-2 gap-4">
+        {stickers.map((sticker) => (
+          <button
+            key={sticker.id}
+            disabled={sticker.disabled}
+            className={cn(
+              "group rounded-xl",
+              sticker.disabled ? "cursor-not-allowed opacity-50" : "hover:bg-gray-50"
+            )}
+            onClick={() => {
+              if (!sticker.disabled) {
+                handleStickerSelect(sticker.id);
+              }
+            }}
+          >
+            <div className="flex gap-2 items-center p-4 border border-gray-200 rounded-xl">
+              <div>
+                {sticker.icon}
+              </div>
+              <span className="text-sm font-bold">{sticker.name}</span>
+            </div>
+          </button>
+        ))}
+      </div>
+    </BaseModal>
+  );
 } 

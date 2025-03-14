@@ -1,7 +1,6 @@
 import { useState, useEffect } from "react";
-import { createPortal } from "react-dom";
-import { X } from "lucide-react";
 import { useEditorStore } from "@/stores/editorStore";
+import { BaseModal } from "@/components/ui/base-modal";
 
 interface ImageUrlModalProps {
   onSave: (imageUrl: string) => void;
@@ -10,9 +9,13 @@ interface ImageUrlModalProps {
 export function ImageUrlModal({ onSave }: ImageUrlModalProps) {
   const [imageUrl, setImageUrl] = useState("");
   const [error, setError] = useState<string | null>(null);
-  const isImageModalOpen = useEditorStore((state) => state.editorState.isImageModalOpen);
+  
+  const isImageModalOpen = useEditorStore(
+    (state) => state.editorState.isImageModalOpen
+  );
   const closeImageModal = useEditorStore((state) => state.closeImageModal);
 
+  // Reset state when modal opens
   useEffect(() => {
     if (isImageModalOpen) {
       setImageUrl("");
@@ -21,67 +24,61 @@ export function ImageUrlModal({ onSave }: ImageUrlModalProps) {
   }, [isImageModalOpen]);
 
   const handleSave = () => {
-    if (!imageUrl.trim()) {
-      setError("Image URL is required");
+    if (!imageUrl) {
+      setError("Please enter an image URL");
       return;
     }
 
-    // Basic URL validation
-    try {
-      new URL(imageUrl);
-      onSave(imageUrl);
-      closeImageModal();
-    } catch (e) {
-      setError("Please enter a valid URL");
+    // Very basic validation - could be improved
+    if (!imageUrl.match(/^https?:\/\/.+\.(jpg|jpeg|png|gif|webp)(\?.*)?$/i)) {
+      setError("Please enter a valid image URL (ending with jpg, png, gif, etc.)");
+      return;
     }
+
+    onSave(imageUrl);
+    closeImageModal();
   };
 
-  if (!isImageModalOpen) return null;
-
-  const modalContent = (
-    <div className="fixed inset-0 bg-black/30 flex items-center justify-center" style={{ zIndex: 300 }}>
-      <div className="bg-white rounded-md p-4 shadow-lg w-full max-w-md relative" style={{ zIndex: 310 }}>
-        <div className="flex justify-between items-center mb-4">
-          <h3 className="font-bold">Add Image</h3>
-          <button onClick={closeImageModal} className="p-1 hover:bg-gray-100 rounded">
-            <X size={18} />
-          </button>
-        </div>
-        <div className="mb-4">
-          <label className="block text-sm font-medium text-gray-700 mb-1">
-            Image URL
-          </label>
-          <input
-            type="text"
-            value={imageUrl}
-            onChange={(e) => {
-              setImageUrl(e.target.value);
-              setError(null);
-            }}
-            className="w-full border border-gray-300 rounded-md p-2"
-            autoFocus
-            placeholder="https://example.com/image.jpg"
-          />
-          {error && <p className="text-xs text-red-500 mt-1">{error}</p>}
-        </div>
-        
-        <div className="flex justify-end gap-2">
-          <button
-            onClick={closeImageModal}
-            className="px-3 py-1 border border-gray-300 rounded-md hover:bg-gray-100"
-          >
-            Cancel
-          </button>
-          <button
-            onClick={handleSave}
-            className="px-3 py-1 bg-blue-500 text-white rounded-md hover:bg-blue-600"
-          >
-            Add Image
-          </button>
-        </div>
-      </div>
-    </div>
+  // Prepare footer buttons
+  const modalFooter = (
+    <>
+      <button
+        onClick={closeImageModal}
+        className="px-3 py-1 border border-gray-300 rounded-md hover:bg-gray-100"
+      >
+        Cancel
+      </button>
+      <button
+        onClick={handleSave}
+        className="px-3 py-1 bg-blue-500 text-white rounded-md hover:bg-blue-600"
+      >
+        Add Image
+      </button>
+    </>
   );
 
-  return createPortal(modalContent, document.body);
+  return (
+    <BaseModal 
+      title="Add Image"
+      isOpen={isImageModalOpen}
+      onClose={closeImageModal}
+      footer={modalFooter}
+    >
+      <label className="block text-sm font-medium text-gray-700 mb-1">
+        Image URL
+      </label>
+      <input
+        type="text"
+        value={imageUrl}
+        onChange={(e) => {
+          setImageUrl(e.target.value);
+          setError(null);
+        }}
+        className="w-full border border-gray-300 rounded-md p-2"
+        autoFocus
+        placeholder="https://example.com/image.jpg"
+      />
+      {error && <p className="text-xs text-red-500 mt-1">{error}</p>}
+    </BaseModal>
+  );
 } 

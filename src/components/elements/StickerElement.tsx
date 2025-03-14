@@ -61,9 +61,11 @@ export function StickerElement({
     baseWidth = 260;
   } else if (element.stickerType === 'blossom') {
     baseWidth = 280; // File-like stickers can be a bit narrower
+  } else if (element.stickerType === 'product') {
+    baseWidth = 390; // Product stickers - width that works with the design
   }
   
-  const scaledWidth = baseWidth * finalScaleFactor;
+  const scaledWidth = Math.max(baseWidth * finalScaleFactor, element.stickerType === 'product' ? 350 : 200);
 
   return (
     <div

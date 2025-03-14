@@ -1,16 +1,32 @@
 import { useState } from "react";
-import { createPortal } from "react-dom";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import * as z from "zod";
-import { AtSign, StickyNote, File as FileIcon, Flower, X, Loader2 } from "lucide-react";
+import { AtSign, StickyNote, File as FileIcon, Flower, Loader2, ShoppingBag } from "lucide-react";
 import { stickerDefinitions } from "./StickerModal";
 import type { StickerParam } from "./StickerModal";
 import { decodeNostrId, publishFileMetadata, extractHashFromUrl } from "@/lib/nostr";
 import { GenericSticker } from "@/components/elements/GenericSticker";
+import { BaseModal } from "@/components/ui/base-modal";
+
+// Icon component for sticker types
+const StickerIcon = ({ stickerType }: { stickerType: string }) => {
+  switch (stickerType) {
+    case 'mention':
+      return <AtSign className="h-5 w-5 text-blue-500" />;
+    case 'note':
+      return <StickyNote className="h-5 w-5 text-yellow-600" />;
+    case 'product':
+      return <ShoppingBag className="h-5 w-5 text-purple-600" />;
+    case 'blossom':
+      return <Flower className="h-5 w-5 text-green-600" />;
+    default:
+      return <StickyNote className="h-5 w-5" />;
+  }
+};
 
 // Define interface for the component props - keep compatibility with current implementation
 interface EnhancedStickerParamModalProps {
@@ -20,20 +36,6 @@ interface EnhancedStickerParamModalProps {
   onClose: () => void;
   onAdd: (stickerType: string, filter: any, accessors: string[], associatedData?: Record<string, any>) => void;
 }
-
-// Icons for different sticker types
-const StickerIcon = ({ stickerType }: { stickerType: string }) => {
-  switch (stickerType) {
-    case "mention":
-      return <AtSign className="w-5 h-5 text-blue-500" />;
-    case "note":
-      return <StickyNote className="w-5 h-5 text-yellow-600" />;
-    case "blossom":
-      return <Flower className="w-5 h-5 text-green-600" />;
-    default:
-      return <FileIcon className="w-5 h-5 text-gray-600" />;
-  }
-};
 
 export function EnhancedStickerParamModal({
   stickerId,
@@ -108,7 +110,7 @@ export function EnhancedStickerParamModal({
       const pubkey = getProcessedValue(watchedValues.pubkey);
       mainFilter = definition.filterTemplate(pubkey, "");
     }
-    else if (stickerId === 'note' && watchedValues.id) {
+    else if ((stickerId === 'note' || stickerId === 'product') && watchedValues.id) {
       const id = getProcessedValue(watchedValues.id);
       mainFilter = definition.filterTemplate(id, "");
     }
@@ -243,150 +245,150 @@ export function EnhancedStickerParamModal({
     }
   };
 
-  const modalContent = (
-    <div className="fixed inset-0 bg-black/30 flex items-center justify-center z-50">
-      <div className="bg-white rounded-lg p-6 shadow-lg w-full max-w-md space-y-4 relative">
-        <div className="flex justify-between items-center">
-          <div className="flex items-center gap-2">
-            <StickerIcon stickerType={stickerId} />
-            <h3 className="text-lg font-semibold">
-              Add {stickerName}
-            </h3>
-          </div>
-          <Button 
-            variant="ghost" 
-            size="icon" 
-            onClick={onClose}
-            className="h-8 w-8 rounded-full"
-          >
-            <X className="h-4 w-4" />
-          </Button>
-        </div>
-        
-        <Form {...form}>
-          <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
-            {/* Dynamically generate form fields from sticker definition */}
-            {definition.params.map((param) => (
-              <FormField
-                key={param.key}
-                control={form.control}
-                name={param.key}
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>
-                      <span className="flex items-center gap-1.5">
-                        {param.key === 'pubkey' && <AtSign className="w-4 h-4 text-blue-500" />}
-                        {param.key === 'id' && <StickyNote className="w-4 h-4 text-yellow-600" />}
-                        {param.key === 'url' && <Flower className="w-4 h-4 text-green-600" />}
-                        {param.key === 'filename' && <FileIcon className="w-4 h-4 text-gray-600" />}
-                        <span>{param.label}</span>
-                      </span>
-                    </FormLabel>
-                    <FormControl>
-                      <Input 
-                        placeholder={param.placeholder} 
-                        {...field} 
-                        required={param.required !== false}
-                      />
-                    </FormControl>
-                    {param.helpText && (
-                      <p className="text-xs text-gray-500">{param.helpText}</p>
-                    )}
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-            ))}
-
-            {/* Preview section */}
-            <div className="border rounded-lg p-4">
-              <h3 className="text-sm font-medium mb-2">Preview</h3>
-              
-              <div className="flex items-center justify-center">
-                {hasPreviewData ? (
-                  <div className="w-full max-w-[250px]">
-                    {/* Special handling for blossom stickers since their events aren't published yet */}
-                    {stickerId === 'blossom' && watchedValues.url && (
-                      <div className="bg-white rounded-lg shadow-sm p-4 overflow-hidden">
-                        {extractHashFromUrl(watchedValues.url) ? (
-                          <GenericSticker
-                            stickerType={stickerId}
-                            filter={previewFilter}
-                            accessors={definition.accessors}
-                            scaleFactor={1}
-                            associatedData={previewAssociatedData}
-                          />
-                        ) : (
-                          <div className="text-sm text-gray-500 text-center">
-                            Could not extract hash from URL
-                          </div>
-                        )}
-                      </div>
-                    )}
-                    
-                    {/* For mention and note stickers, use GenericSticker directly */}
-                    {(stickerId === 'mention' || stickerId === 'note') && (
-                      <GenericSticker
-                        stickerType={stickerId}
-                        filter={previewFilter}
-                        accessors={definition.accessors}
-                        scaleFactor={1}
-                        associatedData={previewAssociatedData}
-                      />
-                    )}
-                  </div>
-                ) : (
-                  <div className="text-sm text-gray-500 p-4">
-                    Enter required fields to see preview
-                  </div>
-                )}
-              </div>
-            </div>
-
-            {/* Error message */}
-            {error && (error !== 'Publishing file metadata...') && (
-              <div className="p-3 bg-red-50 text-red-600 rounded-md text-sm">
-                {error}
-              </div>
-            )}
-            
-            {/* Status message */}
-            {error === 'Publishing file metadata...' && (
-              <div className="p-3 bg-blue-50 text-blue-600 rounded-md text-sm flex items-center">
-                <Loader2 className="w-4 h-4 animate-spin mr-2" />
-                Publishing file metadata...
-              </div>
-            )}
-
-            {/* Submit and cancel buttons */}
-            <div className="flex justify-end space-x-2">
-              <Button 
-                type="button" 
-                variant="outline" 
-                onClick={onClose}
-                disabled={isSubmitting}
-              >
-                Cancel
-              </Button>
-              <Button 
-                type="submit"
-                disabled={isSubmitting}
-              >
-                {isSubmitting ? (
-                  <>
-                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                    Adding...
-                  </>
-                ) : (
-                  'Add'
-                )}
-              </Button>
-            </div>
-          </form>
-        </Form>
-      </div>
+  // Prepare footer buttons
+  const modalFooter = (
+    <div className="flex justify-end space-x-2">
+      <Button 
+        type="button" 
+        variant="outline" 
+        onClick={onClose}
+        disabled={isSubmitting}
+      >
+        Cancel
+      </Button>
+      <Button 
+        type="submit"
+        form="sticker-form" // Connect to the form
+        disabled={isSubmitting}
+      >
+        {isSubmitting ? (
+          <>
+            <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+            Adding...
+          </>
+        ) : (
+          'Add'
+        )}
+      </Button>
     </div>
   );
 
-  return createPortal(modalContent, document.body);
+  // Create modal title with icon
+  const modalTitle = (
+    <div className="flex items-center gap-2">
+      <StickerIcon stickerType={stickerId} />
+      <span>Add {stickerName}</span>
+    </div>
+  );
+
+  return (
+    <BaseModal
+      title={modalTitle}
+      isOpen={isOpen}
+      onClose={onClose}
+      footer={modalFooter}
+    >
+      <Form {...form}>
+        <form 
+          id="sticker-form" 
+          onSubmit={form.handleSubmit(onSubmit)} 
+          className="space-y-4"
+        >
+          {/* Dynamically generate form fields from sticker definition */}
+          {definition.params.map((param) => (
+            <FormField
+              key={param.key}
+              control={form.control}
+              name={param.key}
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>
+                    <span className="flex items-center gap-1.5">
+                      {param.key === 'pubkey' && <AtSign className="w-4 h-4 text-blue-500" />}
+                      {param.key === 'id' && stickerId === 'note' && <StickyNote className="w-4 h-4 text-yellow-600" />}
+                      {param.key === 'id' && stickerId === 'product' && <ShoppingBag className="w-4 h-4 text-purple-600" />}
+                      {param.key === 'url' && <Flower className="w-4 h-4 text-green-600" />}
+                      {param.key === 'filename' && <FileIcon className="w-4 h-4 text-gray-600" />}
+                      <span>{param.label}</span>
+                    </span>
+                  </FormLabel>
+                  <FormControl>
+                    <Input 
+                      placeholder={param.placeholder} 
+                      {...field} 
+                      required={param.required !== false}
+                    />
+                  </FormControl>
+                  {param.helpText && (
+                    <p className="text-xs text-gray-500">{param.helpText}</p>
+                  )}
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+          ))}
+
+          {/* Preview section */}
+          <div className="border rounded-lg p-4">
+            <h3 className="text-sm font-medium mb-2">Preview</h3>
+              
+            <div className="flex items-center justify-center">
+              {hasPreviewData ? (
+                <div className="w-full max-w-[250px]">
+                  {/* Special handling for blossom stickers since their events aren't published yet */}
+                  {stickerId === 'blossom' && watchedValues.url && (
+                    <div className="bg-white rounded-lg shadow-sm p-4 overflow-hidden">
+                      {extractHashFromUrl(watchedValues.url) ? (
+                        <GenericSticker
+                          stickerType={stickerId}
+                          filter={previewFilter}
+                          accessors={definition.accessors}
+                          scaleFactor={1}
+                          associatedData={previewAssociatedData}
+                        />
+                      ) : (
+                        <div className="text-sm text-gray-500 text-center">
+                          Could not extract hash from URL
+                        </div>
+                      )}
+                    </div>
+                  )}
+                  
+                  {/* For mention, note, and product stickers, use GenericSticker directly */}
+                  {(stickerId === 'mention' || stickerId === 'note' || stickerId === 'product') && (
+                    <GenericSticker
+                      stickerType={stickerId}
+                      filter={previewFilter}
+                      accessors={definition.accessors}
+                      scaleFactor={1}
+                      associatedData={previewAssociatedData}
+                    />
+                  )}
+                </div>
+              ) : (
+                <div className="text-sm text-gray-500 p-4">
+                  Enter required fields to see preview
+                </div>
+              )}
+            </div>
+          </div>
+
+          {/* Error message */}
+          {error && (error !== 'Publishing file metadata...') && (
+            <div className="p-3 bg-red-50 text-red-600 rounded-md text-sm">
+              {error}
+            </div>
+          )}
+            
+          {/* Status message */}
+          {error === 'Publishing file metadata...' && (
+            <div className="p-3 bg-blue-50 text-blue-600 rounded-md text-sm flex items-center">
+              <Loader2 className="w-4 h-4 animate-spin mr-2" />
+              Publishing file metadata...
+            </div>
+          )}
+        </form>
+      </Form>
+    </BaseModal>
+  );
 } 

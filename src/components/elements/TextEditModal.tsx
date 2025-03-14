@@ -1,6 +1,4 @@
 import { useState, useEffect } from "react";
-import { createPortal } from "react-dom";
-import { X } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useEditorStore } from "@/stores/editorStore";
 import {
@@ -10,6 +8,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { BaseModal } from "@/components/ui/base-modal";
 
 // Font options from the CSS variables
 const fontOptions = [
@@ -60,7 +59,9 @@ export function TextEditModal() {
     }
   }, [selectedTextElement]);
 
-  if (!isEditModalOpen) return null;
+  if (isEditModalOpen) {
+    console.log("TextEditModal is being rendered - isEditModalOpen:", isEditModalOpen);
+  }
 
   const handleSave = () => {
     if (selectedElementId) {
@@ -74,15 +75,32 @@ export function TextEditModal() {
     closeEditModal();
   };
 
-  const modalContent = (
-    <div className="fixed inset-0 bg-black/30 flex items-center justify-center" style={{ zIndex: 300}}>
-      <div className="bg-white rounded-md p-4 shadow-lg w-full max-w-md relative" style={{ zIndex: 310 }}>
-        <div className="flex justify-between items-center mb-4">
-          <h3 className="font-bold">Edit Text</h3>
-          <button onClick={closeEditModal} className="p-1 hover:bg-gray-100 rounded">
-            <X size={18} />
-          </button>
-        </div>
+  // Prepare footer buttons
+  const modalFooter = (
+    <>
+      <button
+        onClick={closeEditModal}
+        className="px-3 py-1 border border-gray-300 rounded-md hover:bg-gray-100"
+      >
+        Cancel
+      </button>
+      <button
+        onClick={handleSave}
+        className="px-3 py-1 bg-blue-500 text-white rounded-md hover:bg-blue-600"
+      >
+        Save
+      </button>
+    </>
+  );
+
+  return (
+    <BaseModal
+      title="Edit Text"
+      isOpen={isEditModalOpen}
+      onClose={closeEditModal}
+      footer={modalFooter}
+    >
+      <div>
         <textarea
           value={text}
           onChange={(e) => setText(e.target.value)}
@@ -91,128 +109,111 @@ export function TextEditModal() {
           placeholder="Enter your text here..."
         />
         <p className="text-xs text-gray-500 mt-1">Press Enter/Return to create multiline text</p>
-        
-        <div className="mt-4">
-          <label className="block text-sm font-medium text-gray-700 mb-1">
-            Font
-          </label>
-          <Select value={font} onValueChange={setFont}>
-            <SelectTrigger className="w-full">
-              <SelectValue placeholder="Select a font" />
-            </SelectTrigger>
-            <SelectContent side="bottom" align="start" className="max-h-[300px] overflow-y-auto">
-              {fontOptions.map((option) => (
-                <SelectItem 
-                  key={option.value} 
-                  value={option.value}
-                  className={option.value !== "default" ? `font-${option.value}` : ""}
-                >
-                  {option.label}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-        </div>
-        
-        <div className="mt-4">
-          <label className="block text-sm font-medium text-gray-700 mb-1">
-            Size
-          </label>
-          <div className="flex gap-2">
-            <button
-              onClick={() => setSize('sm')}
-              className={cn(
-                "flex-1 py-2 border rounded-md",
-                size === 'sm' 
-                  ? "bg-blue-100 border-blue-500" 
-                  : "border-gray-300 hover:bg-gray-50"
-              )}
-            >
-              Small
-            </button>
-            <button
-              onClick={() => setSize('md')}
-              className={cn(
-                "flex-1 py-2 border rounded-md",
-                size === 'md' 
-                  ? "bg-blue-100 border-blue-500" 
-                  : "border-gray-300 hover:bg-gray-50"
-              )}
-            >
-              Medium
-            </button>
-            <button
-              onClick={() => setSize('lg')}
-              className={cn(
-                "flex-1 py-2 border rounded-md",
-                size === 'lg' 
-                  ? "bg-blue-100 border-blue-500" 
-                  : "border-gray-300 hover:bg-gray-50"
-              )}
-            >
-              Large
-            </button>
-          </div>
-        </div>
-        
-        <div className="mt-4">
-          <label className="block text-sm font-medium text-gray-700 mb-1">
-            Color
-          </label>
-          <div className="flex gap-2">
-            <button
-              onClick={() => setColor('black')}
-              className={cn(
-                "flex-1 py-2 border rounded-md",
-                color === 'black' 
-                  ? "bg-blue-100 border-blue-500" 
-                  : "border-gray-300 hover:bg-gray-50"
-              )}
-            >
-              Black
-            </button>
-            <button
-              onClick={() => setColor('white')}
-              className={cn(
-                "flex-1 py-2 border rounded-md",
-                color === 'white' 
-                  ? "bg-blue-100 border-blue-500" 
-                  : "border-gray-300 hover:bg-gray-50"
-              )}
-            >
-              White
-            </button>
-            <button
-              onClick={() => setColor('blue')}
-              className={cn(
-                "flex-1 py-2 border rounded-md",
-                color === 'blue' 
-                  ? "bg-blue-100 border-blue-500" 
-                  : "border-gray-300 hover:bg-gray-50"
-              )}
-            >
-              Blue
-            </button>
-          </div>
-        </div>
-        
-        <div className="flex justify-end gap-2 mt-4">
+      </div>
+      
+      <div className="mt-4">
+        <label className="block text-sm font-medium text-gray-700 mb-1">
+          Font
+        </label>
+        <Select value={font} onValueChange={setFont}>
+          <SelectTrigger className="w-full">
+            <SelectValue placeholder="Select a font" />
+          </SelectTrigger>
+          <SelectContent side="bottom" align="start" className="max-h-[300px] overflow-y-auto">
+            {fontOptions.map((option) => (
+              <SelectItem 
+                key={option.value} 
+                value={option.value}
+                className={option.value !== "default" ? `font-${option.value}` : ""}
+              >
+                {option.label}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+      </div>
+      
+      <div className="mt-4">
+        <label className="block text-sm font-medium text-gray-700 mb-1">
+          Size
+        </label>
+        <div className="flex gap-2">
           <button
-            onClick={closeEditModal}
-            className="px-3 py-1 border border-gray-300 rounded-md hover:bg-gray-100"
+            onClick={() => setSize('sm')}
+            className={cn(
+              "flex-1 py-2 border rounded-md",
+              size === 'sm' 
+                ? "bg-blue-100 border-blue-500" 
+                : "border-gray-300 hover:bg-gray-50"
+            )}
           >
-            Cancel
+            Small
           </button>
           <button
-            onClick={handleSave}
-            className="px-3 py-1 bg-blue-500 text-white rounded-md hover:bg-blue-600"
+            onClick={() => setSize('md')}
+            className={cn(
+              "flex-1 py-2 border rounded-md",
+              size === 'md' 
+                ? "bg-blue-100 border-blue-500" 
+                : "border-gray-300 hover:bg-gray-50"
+            )}
           >
-            Save
+            Medium
+          </button>
+          <button
+            onClick={() => setSize('lg')}
+            className={cn(
+              "flex-1 py-2 border rounded-md",
+              size === 'lg' 
+                ? "bg-blue-100 border-blue-500" 
+                : "border-gray-300 hover:bg-gray-50"
+            )}
+          >
+            Large
           </button>
         </div>
       </div>
-    </div>
+      
+      <div className="mt-4">
+        <label className="block text-sm font-medium text-gray-700 mb-1">
+          Color
+        </label>
+        <div className="flex gap-2">
+          <button
+            onClick={() => setColor('black')}
+            className={cn(
+              "flex-1 py-2 border rounded-md",
+              color === 'black' 
+                ? "bg-blue-100 border-blue-500" 
+                : "border-gray-300 hover:bg-gray-50"
+            )}
+          >
+            Black
+          </button>
+          <button
+            onClick={() => setColor('white')}
+            className={cn(
+              "flex-1 py-2 border rounded-md",
+              color === 'white' 
+                ? "bg-blue-100 border-blue-500" 
+                : "border-gray-300 hover:bg-gray-50"
+            )}
+          >
+            White
+          </button>
+          <button
+            onClick={() => setColor('blue')}
+            className={cn(
+              "flex-1 py-2 border rounded-md",
+              color === 'blue' 
+                ? "bg-blue-100 border-blue-500" 
+                : "border-gray-300 hover:bg-gray-50"
+            )}
+          >
+            Blue
+          </button>
+        </div>
+      </div>
+    </BaseModal>
   );
-
-  return createPortal(modalContent, document.body);
 } 

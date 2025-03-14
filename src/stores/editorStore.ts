@@ -370,7 +370,17 @@ export const useEditorStore = create<EditorStore>((set, get) => ({
   
   openEditModal: () => {
     set((state) => ({
-      editorState: { ...state.editorState, isEditModalOpen: true },
+      editorState: { 
+        ...state.editorState, 
+        isEditModalOpen: true,
+        // Close any other modals that might be open
+        isPublishModalOpen: false,
+        isImageModalOpen: false,
+        isVideoModalOpen: false,
+        isFileModalOpen: false,
+        isStickerModalOpen: false,
+        isStickerParamModalOpen: false
+      },
     }))
   },
   
@@ -382,7 +392,17 @@ export const useEditorStore = create<EditorStore>((set, get) => ({
   
   openPublishModal: () => {
     set((state) => ({
-      editorState: { ...state.editorState, isPublishModalOpen: true },
+      editorState: { 
+        ...state.editorState, 
+        isPublishModalOpen: true,
+        // Close any other modals that might be open
+        isEditModalOpen: false,
+        isImageModalOpen: false,
+        isVideoModalOpen: false,
+        isFileModalOpen: false,
+        isStickerModalOpen: false,
+        isStickerParamModalOpen: false
+      },
     }))
   },
   
@@ -394,7 +414,17 @@ export const useEditorStore = create<EditorStore>((set, get) => ({
   
   openImageModal: () => {
     set((state) => ({
-      editorState: { ...state.editorState, isImageModalOpen: true },
+      editorState: { 
+        ...state.editorState, 
+        isImageModalOpen: true,
+        // Close any other modals that might be open
+        isEditModalOpen: false,
+        isPublishModalOpen: false,
+        isVideoModalOpen: false,
+        isFileModalOpen: false,
+        isStickerModalOpen: false,
+        isStickerParamModalOpen: false
+      },
     }))
   },
   
@@ -406,7 +436,17 @@ export const useEditorStore = create<EditorStore>((set, get) => ({
   
   openVideoModal: () => {
     set((state) => ({
-      editorState: { ...state.editorState, isVideoModalOpen: true },
+      editorState: { 
+        ...state.editorState, 
+        isVideoModalOpen: true,
+        // Close any other modals that might be open
+        isEditModalOpen: false,
+        isPublishModalOpen: false,
+        isImageModalOpen: false,
+        isFileModalOpen: false,
+        isStickerModalOpen: false,
+        isStickerParamModalOpen: false
+      },
     }))
   },
   
@@ -418,7 +458,17 @@ export const useEditorStore = create<EditorStore>((set, get) => ({
   
   openFileModal: () => {
     set((state) => ({
-      editorState: { ...state.editorState, isFileModalOpen: true },
+      editorState: { 
+        ...state.editorState, 
+        isFileModalOpen: true,
+        // Close any other modals that might be open
+        isEditModalOpen: false,
+        isPublishModalOpen: false,
+        isImageModalOpen: false,
+        isVideoModalOpen: false,
+        isStickerModalOpen: false,
+        isStickerParamModalOpen: false
+      },
     }))
   },
   
@@ -430,7 +480,17 @@ export const useEditorStore = create<EditorStore>((set, get) => ({
   
   openStickerModal: () => {
     set((state) => ({
-      editorState: { ...state.editorState, isStickerModalOpen: true },
+      editorState: { 
+        ...state.editorState, 
+        isStickerModalOpen: true,
+        // Close any other modals that might be open
+        isEditModalOpen: false,
+        isPublishModalOpen: false,
+        isImageModalOpen: false,
+        isVideoModalOpen: false,
+        isFileModalOpen: false,
+        isStickerParamModalOpen: false
+      },
     }))
   },
   
@@ -446,7 +506,13 @@ export const useEditorStore = create<EditorStore>((set, get) => ({
         ...state.editorState, 
         isStickerParamModalOpen: true,
         selectedStickerType: stickerId,
-        isStickerModalOpen: false, // Close sticker modal when param modal opens
+        // Close other modals
+        isEditModalOpen: false,
+        isPublishModalOpen: false,
+        isImageModalOpen: false,
+        isVideoModalOpen: false,
+        isFileModalOpen: false,
+        isStickerModalOpen: false, // Already being set to false in the original implementation
       },
     }))
   },

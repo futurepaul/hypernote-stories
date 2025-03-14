@@ -1,7 +1,10 @@
-import { AtSign, StickyNote, Loader2, Flower, Download } from "lucide-react";
+import { AtSign, StickyNote, Loader2, Flower, Download, ShoppingBag } from "lucide-react";
 import { useNostrProfileQuery, useNostrNoteQuery, useNostrFileMetadataQuery } from "@/queries/nostr";
 // @ts-ignore
 import fileIcon from "@/assets/file.png";
+
+// New query hook for product listings
+import { useNostrEventQuery } from "@/queries/nostr";
 
 // Generic sticker component that handles data fetching based on filter
 interface GenericStickerProps {
@@ -29,6 +32,11 @@ export const GenericSticker: React.FC<GenericStickerProps> = ({
     stickerType === 'note' ? filter : { kinds: [1], ids: ['invalid'] },
     { enabled: stickerType === 'note' }
   );
+
+  const productQuery = useNostrEventQuery(
+    stickerType === 'product' ? filter : { kinds: [30402], ids: ['invalid'] },
+    { enabled: stickerType === 'product' }
+  );
   
   const fileMetadataQuery = useNostrFileMetadataQuery(
     stickerType === 'blossom' ? filter : { kinds: [1063], '#x': ['invalid'] },
@@ -39,12 +47,14 @@ export const GenericSticker: React.FC<GenericStickerProps> = ({
   const isLoading = 
     (stickerType === 'mention' && profileQuery.isLoading) ||
     (stickerType === 'note' && noteQuery.isLoading) ||
+    (stickerType === 'product' && productQuery.isLoading) ||
     (stickerType === 'blossom' && fileMetadataQuery.isLoading);
   
   // Determine error state
   const error = 
     (stickerType === 'mention' && profileQuery.error) ||
     (stickerType === 'note' && noteQuery.error) ||
+    (stickerType === 'product' && productQuery.error) ||
     (stickerType === 'blossom' && fileMetadataQuery.error);
   
   // Render loading state
@@ -158,6 +168,81 @@ export const GenericSticker: React.FC<GenericStickerProps> = ({
                 {new Date(note.created_at * 1000).toLocaleString()}
               </div>
             )}
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  // Render a Product sticker
+  if (stickerType === 'product' && productQuery.data) {
+    const product = productQuery.data;
+    
+    // Extract product information from tags
+    const getTagValue = (tagName: string): string | null => {
+      if (!product.tags) return null;
+      const tag = product.tags.find((t: string[]) => t[0] === tagName);
+      return tag ? tag[1] : null;
+    };
+    
+    // Get multiple tags with the same name (like images)
+    const getTagValues = (tagName: string): string[][] => {
+      if (!product.tags) return [];
+      return product.tags.filter((t: string[]) => t[0] === tagName);
+    };
+    
+    const title = getTagValue('title') || 'Untitled Product';
+    const price = getTagValue('price');
+    const currency = product.tags?.find((t: string[]) => t[0] === 'price')?.[2] || 'USD';
+    const images = getTagValues('image');
+    const imageUrl = images.length > 0 ? images[0][1] : null;
+    
+    return (
+      <div className="bg-white rounded-lg shadow-sm overflow-hidden w-full">
+        <div className="rounded-full bg-purple-100 px-3 py-1.5 inline-flex items-center gap-1.5 m-2">
+          <ShoppingBag className="w-4 h-4 text-purple-700" />
+          <span className="text-sm font-semibold text-purple-800">
+            Product
+          </span>
+        </div>
+        
+        <div className="p-4">
+          {/* Product Image */}
+          {imageUrl && (
+            <div className="mb-3">
+              <div className="relative pb-[56.25%] overflow-hidden rounded-md">
+                <img 
+                  src={imageUrl} 
+                  alt={title} 
+                  className="absolute inset-0 w-full h-full object-cover rounded-md pointer-events-none"
+                  onError={(e) => {
+                    // Replace broken image with placeholder
+                    (e.target as HTMLImageElement).src = "https://placehold.co/800x600/e2e8f0/64748b?text=Product+Image";
+                  }}
+                />
+              </div>
+            </div>
+          )}
+          
+          {/* Product Title */}
+          <h3 className="text-xl font-bold text-gray-900 mb-2">{title}</h3>
+          
+          {/* Product Description */}
+          <p className="text-sm text-gray-700 mb-4 line-clamp-2">
+            {product.content || "No description available"}
+          </p>
+          
+          {/* Price and Buy Button - Stacked vertically */}
+          <div className="flex flex-col gap-3 mt-4">
+            {price && (
+              <div className="text-2xl font-bold text-purple-700">
+                {price} {currency}
+              </div>
+            )}
+            
+            <button className="bg-purple-600 hover:bg-purple-700 text-white py-3 rounded-md text-sm font-medium transition-colors w-full">
+              Buy Now
+            </button>
           </div>
         </div>
       </div>

@@ -236,9 +236,13 @@ function RouteComponent() {
           <div
             className="w-12 h-12 border border-black rounded-xs shadow-sm flex items-center justify-center cursor-pointer hover:bg-gray-100 pointer-events-auto"
             style={{ zIndex: 30 }}
-            onClick={() =>
-              useEditorStore.getState().addTextElement("edit me", 540, 960)
-            }
+            onClick={() => {
+              console.log("Add text button clicked");
+              useEditorStore.getState().addTextElement("edit me", 540, 960);
+              console.log("Text element added, opening edit modal");
+              openEditModal();
+              console.log("Edit modal opened");
+            }}
           >
             <Type />
           </div>

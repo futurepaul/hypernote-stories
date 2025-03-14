@@ -1,7 +1,6 @@
 import { useState, useEffect } from "react";
-import { createPortal } from "react-dom";
-import { X } from "lucide-react";
 import { useEditorStore } from "@/stores/editorStore";
+import { BaseModal } from "@/components/ui/base-modal";
 
 interface FileUrlModalProps {
   onSave: (fileUrl: string, fileName: string) => void;
@@ -11,9 +10,13 @@ export function FileUrlModal({ onSave }: FileUrlModalProps) {
   const [fileUrl, setFileUrl] = useState("");
   const [fileName, setFileName] = useState("");
   const [error, setError] = useState<string | null>(null);
-  const isFileModalOpen = useEditorStore((state) => state.editorState.isFileModalOpen);
+  
+  const isFileModalOpen = useEditorStore(
+    (state) => state.editorState.isFileModalOpen
+  );
   const closeFileModal = useEditorStore((state) => state.closeFileModal);
 
+  // Reset state when modal opens
   useEffect(() => {
     if (isFileModalOpen) {
       setFileUrl("");
@@ -23,13 +26,13 @@ export function FileUrlModal({ onSave }: FileUrlModalProps) {
   }, [isFileModalOpen]);
 
   const handleSave = () => {
-    if (!fileUrl.trim()) {
-      setError("File URL is required");
+    if (!fileUrl) {
+      setError("Please enter a file URL");
       return;
     }
 
-    if (!fileName.trim()) {
-      setError("File name is required");
+    if (!fileName) {
+      setError("Please enter a file name");
       return;
     }
 
@@ -43,67 +46,63 @@ export function FileUrlModal({ onSave }: FileUrlModalProps) {
     }
   };
 
-  if (!isFileModalOpen) return null;
-
-  const modalContent = (
-    <div className="fixed inset-0 bg-black/30 flex items-center justify-center" style={{ zIndex: 300 }}>
-      <div className="bg-white rounded-md p-4 shadow-lg w-full max-w-md relative" style={{ zIndex: 310 }}>
-        <div className="flex justify-between items-center mb-4">
-          <h3 className="font-bold">Add File</h3>
-          <button onClick={closeFileModal} className="p-1 hover:bg-gray-100 rounded">
-            <X size={18} />
-          </button>
-        </div>
-        <div className="mb-4">
-          <label className="block text-sm font-medium text-gray-700 mb-1">
-            File URL
-          </label>
-          <input
-            type="text"
-            value={fileUrl}
-            onChange={(e) => {
-              setFileUrl(e.target.value);
-              setError(null);
-            }}
-            className="w-full border border-gray-300 rounded-md p-2"
-            autoFocus
-            placeholder="https://example.com/file.pdf"
-          />
-        </div>
-        <div className="mb-4">
-          <label className="block text-sm font-medium text-gray-700 mb-1">
-            File Name
-          </label>
-          <input
-            type="text"
-            value={fileName}
-            onChange={(e) => {
-              setFileName(e.target.value);
-              setError(null);
-            }}
-            className="w-full border border-gray-300 rounded-md p-2"
-            placeholder="Document.pdf"
-          />
-          {error && <p className="text-xs text-red-500 mt-1">{error}</p>}
-        </div>
-        
-        <div className="flex justify-end gap-2">
-          <button
-            onClick={closeFileModal}
-            className="px-3 py-1 border border-gray-300 rounded-md hover:bg-gray-100"
-          >
-            Cancel
-          </button>
-          <button
-            onClick={handleSave}
-            className="px-3 py-1 bg-blue-500 text-white rounded-md hover:bg-blue-600"
-          >
-            Add File
-          </button>
-        </div>
-      </div>
-    </div>
+  // Prepare footer buttons
+  const modalFooter = (
+    <>
+      <button
+        onClick={closeFileModal}
+        className="px-3 py-1 border border-gray-300 rounded-md hover:bg-gray-100"
+      >
+        Cancel
+      </button>
+      <button
+        onClick={handleSave}
+        className="px-3 py-1 bg-blue-500 text-white rounded-md hover:bg-blue-600"
+      >
+        Add File
+      </button>
+    </>
   );
 
-  return createPortal(modalContent, document.body);
+  return (
+    <BaseModal 
+      title="Add File"
+      isOpen={isFileModalOpen}
+      onClose={closeFileModal}
+      footer={modalFooter}
+    >
+      <div>
+        <label className="block text-sm font-medium text-gray-700 mb-1">
+          File URL
+        </label>
+        <input
+          type="text"
+          value={fileUrl}
+          onChange={(e) => {
+            setFileUrl(e.target.value);
+            setError(null);
+          }}
+          className="w-full border border-gray-300 rounded-md p-2"
+          autoFocus
+          placeholder="https://example.com/file.pdf"
+        />
+      </div>
+      <div className="mt-4">
+        <label className="block text-sm font-medium text-gray-700 mb-1">
+          File Name
+        </label>
+        <input
+          type="text"
+          value={fileName}
+          onChange={(e) => {
+            setFileName(e.target.value);
+            setError(null);
+          }}
+          className="w-full border border-gray-300 rounded-md p-2"
+          placeholder="Document.pdf"
+        />
+      </div>
+      {error && <p className="text-xs text-red-500 mt-2">{error}</p>}
+    </BaseModal>
+  );
 } 
